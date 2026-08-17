@@ -1,0 +1,72 @@
+{
+  "permissions": {
+    "allow": [
+      "bazel *",
+      "java *",
+      "javac *",
+      "jar *",
+      "git *",
+      "gh *"
+    ],
+    "deny": [
+      "rm -rf",
+      "cat .env",
+      "echo * > .env",
+      "cat **/*.pem",
+      "cat **/*.p12",
+      "cat **/*.jks",
+      "cat ~/.ssh/*"
+    ]
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "CMD=$(echo \"$CLAUDE_TOOL_INPUT\" | jq -r '.command // empty'); case \"$CMD\" in *\"gh pr create\"*) if [ -f MODULE.bazel ]; then if ! bazel test //... >/dev/null 2>&1; then echo 'WARNING: bazel test //... is not passing. The PR gate in .claude/rules/process.md requires a green suite before opening a PR. Proceeding is a deliberate act - say why in the PR description.' >&2; fi; fi;; esac; exit 0",
+            "timeout": 300000
+          }
+        ]
+      },
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "BRANCH=$(git rev-parse --abbrev-ref HEAD 2>/dev/null); if [ \"$BRANCH\" = \"main\" ] || [ \"$BRANCH\" = \"master\" ]; then echo \"Refusing to edit while on $BRANCH. Create a worktree and feature branch first (see .claude/rules/git-workflow.md).\" >&2; exit 2; fi; exit 0",
+            "timeout": 5000
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "FILE=$(echo \"$CLAUDE_TOOL_INPUT\" | jq -r '.file_path // .filePath // empty'); [ -n \"$FILE\" ] && case \"$FILE\" in *.java) [ -f tools/google-java-format.jar ] && java -jar tools/google-java-format.jar --replace \"$FILE\" 2>/dev/null;; esac; exit 0",
+            "timeout": 10000
+          },
+          {
+            "type": "command",
+            "command": "FILE=$(echo \"$CLAUDE_TOOL_INPUT\" | jq -r '.file_path // .filePath // empty'); case \"$FILE\" in */domain/*.java) if grep -qE '^import .*\\.(gateway|sequencer|egress)\\.' \"$FILE\" 2>/dev/null; then echo \"Layering violation: domain/ must not import gateway/, sequencer/, or egress/ (see .claude/rules/architecture.md).\" >&2; fi;; esac; exit 0",
+            "timeout": 5000
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "if git diff --quiet HEAD 2>/dev/null && git diff --cached --quiet 2>/dev/null; then exit 0; fi; echo 'Uncommitted changes detected. Review with git diff.' >&2; exit 0"
+          }
+        ]
+      }
+    ]
+  }
+}
