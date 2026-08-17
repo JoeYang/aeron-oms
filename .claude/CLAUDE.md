@@ -102,7 +102,6 @@ common/     SBE codecs, buffer flyweights, shared value objects
 | @.claude/rules/testing.md | TDD, JUnit 5, determinism and failure injection |
 | @.claude/rules/security.md | Strict: OWASP baseline + cryptography + audit |
 | @.claude/rules/trading-latency.md | Latency budgets, hot-path and JVM constraints |
-| @.claude/rules/exchange.md | Venue sessions and order lifecycle conventions |
 | @.claude/rules/api-design.md | SBE, FIX, and control-plane interface design |
 | @.claude/rules/git-workflow.md | Worktrees and feature branches |
 | @.claude/rules/stacked-prs.md | Stacked PR approaches — decision pending |
