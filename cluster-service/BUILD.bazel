@@ -1,0 +1,21 @@
+load("@rules_java//java:defs.bzl", "java_library")
+load("//tools:junit5.bzl", "java_junit5_test")
+
+# The ClusteredService implementation — the deterministic state machine.
+#
+# Visibility is restricted to cluster-node on purpose: only the process that hosts the
+# service container may depend on it. A gateway that reaches in here would be talking to
+# the state machine directly instead of through the cluster, which breaks ordering.
+java_library(
+    name = "cluster-service",
+    srcs = glob(["src/main/java/**/*.java"]),
+    visibility = ["//cluster-node:__pkg__"],
+    deps = ["//core"],
+)
+
+java_junit5_test(
+    name = "cluster_service_test",
+    srcs = glob(["src/test/java/**/*.java"]),
+    test_package = "io.joeyang.oms.cluster.service",
+    deps = [":cluster-service"],
+)
