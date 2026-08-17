@@ -43,12 +43,12 @@ adopting stacked PRs — see @.claude/rules/stacked-prs.md.
 
 | Action | Command |
 |---|---|
-| Build | `bazel build //...` |
-| Test | `bazel test //...` |
-| Test (single) | `bazel test //core:core_test` |
-| Run a process | `bazel run //cluster-node:cluster-node` |
-| Format | `java -jar tools/google-java-format.jar --replace $(find src/ -name '*.java')` |
-| Lint | `bazel build //... --aspects=@rules_lint//java:checkstyle.bzl%checkstyle` |
+| Build | `scripts/build.sh` (wraps `bazel build //...`) |
+| Test | `scripts/test.sh` (wraps `bazel test //...`) |
+| Test (single) | `scripts/test.sh //core:core_test` |
+| Run a process | `scripts/run.sh cluster-node \| gateway \| driver` |
+| Format | **not wired yet** — `tools/google-java-format.jar` does not exist |
+| Lint | **not wired yet** — no Checkstyle aspect configured |
 | Spec — start initiative | `openspec new change <name>` |
 | Spec — validate | `openspec validate <name>` |
 | Spec — archive when merged | `openspec archive <name>` |

@@ -73,6 +73,26 @@ fails the build rather than producing a warning.
 - **WHEN** any package declares a dependency on `//core`
 - **THEN** the build succeeds
 
+### Requirement: Developer entry point scripts
+
+The repository SHALL provide shell entry points for build, test, and run, so that a newcomer
+does not need to know Bazel target syntax to get started.
+
+#### Scenario: Scripts work from any directory
+
+- **WHEN** `scripts/test.sh` is invoked from a subdirectory of the repository
+- **THEN** it runs against the whole repository, not the subdirectory
+
+#### Scenario: Failure propagates
+
+- **WHEN** the underlying Bazel command fails
+- **THEN** the script exits non-zero rather than reporting success
+
+#### Scenario: Unknown process is rejected
+
+- **WHEN** `scripts/run.sh` is given a name that is not a declared process
+- **THEN** it exits non-zero and lists the valid process names
+
 ### Requirement: Native access flag present
 
 Binary and test targets SHALL run with native access enabled, so that the FFM calls required

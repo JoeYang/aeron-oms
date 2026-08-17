@@ -25,10 +25,13 @@ fails the build.
 Requires Bazel. The JDK is pinned in the build as `remotejdk_25` and is not taken from `PATH`.
 
 ```bash
-bazel build //...
-bazel test //...
-bazel run //cluster-node:cluster-node
+scripts/build.sh                 # bazel build //...
+scripts/test.sh                  # bazel test //...
+scripts/run.sh cluster-node      # gateway | driver
 ```
+
+The scripts run from any directory and pass extra arguments through to Bazel, so
+`scripts/test.sh //core:core_test` works. Use Bazel directly when you need more control.
 
 ## Status
 
