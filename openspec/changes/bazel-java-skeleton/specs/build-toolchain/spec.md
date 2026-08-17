@@ -93,6 +93,32 @@ does not need to know Bazel target syntax to get started.
 - **WHEN** `scripts/run.sh` is given a name that is not a declared process
 - **THEN** it exits non-zero and lists the valid process names
 
+### Requirement: Formatting and linting are enforceable
+
+The repository SHALL provide a formatter that rewrites sources and a read-only check that
+fails on unformatted or non-conforming code, so the check can gate a PR.
+
+#### Scenario: Formatter and linter resolve through the build
+
+- **WHEN** a developer runs the format or lint script on a clean checkout
+- **THEN** the tools are fetched by the build system, with no jar committed to the repository
+  and no download performed by the script itself
+
+#### Scenario: Unformatted code fails the check
+
+- **WHEN** a source file does not match the formatter's output
+- **THEN** `scripts/lint.sh` exits non-zero and names the offending file
+
+#### Scenario: Style violations fail the check
+
+- **WHEN** a source file violates the configured style rules
+- **THEN** `scripts/lint.sh` exits non-zero, rather than printing warnings and succeeding
+
+#### Scenario: The check never modifies files
+
+- **WHEN** `scripts/lint.sh` runs against unformatted sources
+- **THEN** the working tree is unchanged afterwards
+
 ### Requirement: Native access flag present
 
 Binary and test targets SHALL run with native access enabled, so that the FFM calls required

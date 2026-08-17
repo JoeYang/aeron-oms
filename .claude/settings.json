@@ -47,7 +47,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "FILE=$(echo \"$CLAUDE_TOOL_INPUT\" | jq -r '.file_path // .filePath // empty'); [ -n \"$FILE\" ] && case \"$FILE\" in *.java) [ -f tools/google-java-format.jar ] && java -jar tools/google-java-format.jar --replace \"$FILE\" 2>/dev/null;; esac; exit 0",
+            "command": "FILE=$(echo \"$CLAUDE_TOOL_INPUT\" | jq -r '.file_path // .filePath // empty'); [ -n \"$FILE\" ] && case \"$FILE\" in *.java) [ -x bazel-bin/tools/google-java-format ] && ./bazel-bin/tools/google-java-format --replace \"$FILE\" 2>/dev/null;; esac; exit 0",
             "timeout": 10000
           },
           {

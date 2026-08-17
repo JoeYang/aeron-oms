@@ -43,3 +43,14 @@
 - [x] 6.4 Make the scripts runnable from any working directory
 - [x] 6.5 Verify each script exits non-zero when the underlying Bazel command fails
 - [x] 6.6 List the scripts in `CLAUDE.md` and `README.md`
+
+## 7. Formatting and linting
+
+- [x] 7.1 Resolve google-java-format and Checkstyle through Bazel, not a committed jar
+- [x] 7.2 Add the `--add-exports` JVM flags google-java-format needs on a modern JDK
+- [x] 7.3 Add `scripts/format.sh`, rewriting sources in place
+- [x] 7.4 Add `scripts/lint.sh` as a read-only gate: format check plus Checkstyle
+- [x] 7.5 Promote Checkstyle severity to error so the gate fails rather than warns
+- [x] 7.6 Fix the violations the gate exposes
+- [x] 7.7 Point the auto-format hook at the built launcher so it no longer no-ops
+- [x] 7.8 Verify the gate fails on a misformatted file, then restore it
