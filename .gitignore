@@ -1,0 +1,13 @@
+# Bazel convenience symlinks (bazel-bin, bazel-out, bazel-testlogs, bazel-<workspace>)
+/bazel-*
+
+# Bazel lock file is intentionally tracked once generated; uncomment to ignore.
+# MODULE.bazel.lock
+
+# IDE
+.idea/
+*.iml
+.vscode/
+
+# Lavish review artifacts
+.lavish/
