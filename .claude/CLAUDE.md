@@ -6,12 +6,13 @@ downstream services consume that stream to rebuild state deterministically.
 
 ## Status
 
-Genesis — the repo contains only `README.md`. There is no `src/`, `MODULE.bazel`,
-`BUILD.bazel`, or `tools/` yet. The commands below are targets to build toward, not commands
-that currently pass. Each becomes real in the commit that creates it; keep this table honest,
-because a listed command that does not run is worse than no table.
+Skeleton. The Bazel build works and `bazel test //...` is green. There is no Aeron dependency
+and no OMS behaviour yet — the packages hold placeholders that prove the toolchain, not domain
+types. Keep the command table below honest: a listed command that does not run is worse than
+no table.
 
-Target runtime is **JDK 25**. The choice is load-bearing: CPU pinning uses the FFM API
+Target runtime is **JDK 25**, pinned in the build as `remotejdk_25` rather than inherited from
+`PATH`. The choice is load-bearing: CPU pinning uses the FFM API
 (`java.lang.foreign`) to call `sched_setaffinity`, which removes any need for JNI, a
 third-party affinity library, or a C++ toolchain. See @.claude/rules/trading-latency.md.
 
@@ -44,7 +45,8 @@ adopting stacked PRs — see @.claude/rules/stacked-prs.md.
 |---|---|
 | Build | `bazel build //...` |
 | Test | `bazel test //...` |
-| Test (single) | `bazel test //src/test/java/io/joeyang/oms/<pkg>:<Class>` |
+| Test (single) | `bazel test //core:core_test` |
+| Run a process | `bazel run //cluster-node:cluster-node` |
 | Format | `java -jar tools/google-java-format.jar --replace $(find src/ -name '*.java')` |
 | Lint | `bazel build //... --aspects=@rules_lint//java:checkstyle.bzl%checkstyle` |
 | Spec — start initiative | `openspec new change <name>` |
@@ -53,17 +55,20 @@ adopting stacked PRs — see @.claude/rules/stacked-prs.md.
 
 ## Architecture
 
-Target tier layout. Import direction is enforced — see @.claude/rules/architecture.md.
+Aeron Cluster. Dependency direction is enforced by Bazel `visibility`, not convention — see
+@.claude/rules/architecture.md.
 
 ```
-gateway/    protocol adapters (FIX, SBE) — decode/encode only, no business logic
-sequencer/  Aeron cluster: total ordering, consensus, journal, replay
-domain/     deterministic state machine: order lifecycle, matching, risk, positions
-egress/     outbound publication of acks, fills, drops, snapshots
-common/     SBE codecs, buffer flyweights, shared value objects
+//core             shared library: value types, SBE codecs. No entry point.
+//cluster-service  ClusteredService — the deterministic state machine
+//cluster-node     hosts ConsensusModule + ClusteredServiceContainer
+//gateway          AeronCluster client + protocol adapters (FIX, SBE)
+//driver           standalone MediaDriver launcher
 ```
 
-`domain/` is the replay-critical core: pure, deterministic, no I/O, no ambient clock.
+`//cluster-service` is the replay-critical core: pure, deterministic, no I/O, no ambient clock.
+Its visibility is restricted to `//cluster-node`, so a forbidden dependency fails the build
+rather than warning. Aeron Cluster sequences ingress — this project does not write a sequencer.
 
 ## Boundaries
 

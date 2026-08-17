@@ -52,7 +52,7 @@
           },
           {
             "type": "command",
-            "command": "FILE=$(echo \"$CLAUDE_TOOL_INPUT\" | jq -r '.file_path // .filePath // empty'); case \"$FILE\" in */domain/*.java) if grep -qE '^import .*\\.(gateway|sequencer|egress)\\.' \"$FILE\" 2>/dev/null; then echo \"Layering violation: domain/ must not import gateway/, sequencer/, or egress/ (see .claude/rules/architecture.md).\" >&2; fi;; esac; exit 0",
+            "command": "FILE=$(echo \"$CLAUDE_TOOL_INPUT\" | jq -r '.file_path // .filePath // empty'); case \"$FILE\" in */cluster-service/*.java) if grep -qE '^import io\\.joeyang\\.oms\\.(gateway|driver|cluster\\.node)\\.' \"$FILE\" 2>/dev/null; then echo \"Layering violation: cluster-service must not import gateway, driver, or cluster.node (see .claude/rules/architecture.md). Bazel visibility is the real guard; this is a faster signal.\" >&2; fi;; esac; exit 0",
             "timeout": 5000
           }
         ]

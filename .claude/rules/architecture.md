@@ -1,58 +1,75 @@
 ---
-paths: ["src/main/java/**", "**/BUILD.bazel", "MODULE.bazel"]
+paths: ["*/src/main/java/**", "**/BUILD.bazel", "MODULE.bazel"]
 ---
-# Architecture — tiers and import direction
+# Architecture — packages and dependency direction
 
-## Tiers
+The project runs on **Aeron Cluster**. The framework supplies consensus, ordered ingress, the
+log via Aeron Archive, snapshots, and leader failover. This project does not write a sequencer:
+the consensus module performs sequencing.
 
-| Tier | Package | Responsibility | May import |
+## Packages
+
+| Package | Bazel target | Responsibility | May depend on |
 |---|---|---|---|
-| gateway | `io.joeyang.oms.gateway` | Protocol adapters (FIX, SBE, admin). Decode inbound, encode outbound. No business logic. | `common` |
-| sequencer | `io.joeyang.oms.sequencer` | Aeron cluster: total ordering, consensus, journal, replay driver. | `common` |
-| domain | `io.joeyang.oms.domain` | Deterministic state machine — order lifecycle, matching, risk, positions. | `common` |
-| egress | `io.joeyang.oms.egress` | Outbound publication of acks, fills, drops, snapshots. | `common` |
-| common | `io.joeyang.oms.common` | SBE codecs, buffer flyweights, shared value objects. | (nothing) |
+| core | `//core` | Shared library: value types, SBE codecs, buffer flyweights. No entry point. | (nothing) |
+| cluster-service | `//cluster-service` | The `ClusteredService` implementation — the deterministic state machine driven by the consensus module. | `core` |
+| cluster-node | `//cluster-node` | Hosts `ConsensusModule` and `ClusteredServiceContainer`. | `cluster-service`, `core` |
+| gateway | `//gateway` | `AeronCluster` client plus protocol adapters (FIX, SBE). | `core` |
+| driver | `//driver` | Standalone `MediaDriver` launcher. | `core` |
 
-Enforce with Bazel `visibility` on each `java_library` target, not by convention alone.
-A tier boundary that only exists in this document is not a boundary.
+One Bazel package per deployable process, plus `core` as the shared library.
+
+## Dependency direction is enforced, not documented
+
+`//cluster-service` declares `visibility = ["//cluster-node:__pkg__"]`. Only the process that
+hosts the service container may depend on it.
+
+This is mechanical. Adding `//cluster-service` to `//gateway`'s deps produces:
+
+```
+ERROR: in java_binary rule //gateway:gateway: Visibility error:
+target '//cluster-service:cluster-service' is not visible from target '//gateway:gateway'
+```
+
+The build aborts. A gateway that depended on the clustered service would reach the state
+machine directly instead of through the cluster, bypassing ordering — so this is the boundary
+worth enforcing before any code accumulates.
+
+A boundary that exists only in this document is not a boundary. Every rule in the table above
+is backed by a `visibility` declaration.
 
 ## The determinism rule
 
-`domain/` is the replay-critical core. Given the same ordered input stream it MUST produce
-identical state. Inside `domain/`:
+`cluster-service` is the replay-critical core. Given the same ordered input it MUST produce
+identical state, because Aeron Cluster replays the log to rebuild state after a restart and to
+bring a follower up to date. Inside `cluster-service`:
 
-- No wall-clock reads — time arrives as a field on the inbound command, stamped by the sequencer
-- No `Random`, no generated UUIDs — any seed or identifier comes from the command
+- No wall-clock reads — time arrives from the cluster, on the sequenced message or from the
+  cluster clock handed to the service
+- No `Random`, no generated UUIDs — any seed or identifier comes from the sequenced message
 - No iteration over `HashMap`/`HashSet` where order affects output — use ordered or Agrona
   collections with deterministic iteration
 - No I/O, no blocking logging, no threads
-- No dependency on `gateway`, `sequencer`, or `egress`
+- No dependency on `gateway`, `cluster-node`, or `driver`
 
-A determinism break is a correctness bug, not a style preference: replay diverges and the
-journal stops being a source of truth.
+A determinism break is a correctness bug, not a style preference: replay diverges, and a
+follower reaches a different state from the leader.
 
-## Everything enters through the sequencer
+## Everything enters through the cluster
 
 The governing principle: **all inputs are sequenced.** Not only order flow, but also market
 data, reference data, configuration, and time.
 
-The consequence is that a journal becomes a complete description of a run. Nothing reaches
-the state machine from outside the ordered stream, so replay reproduces the run exactly, and
-journal testing (@.claude/rules/testing.md) can serve as the primary test method.
+The consequence is that the cluster log becomes a complete description of a run. Nothing
+reaches the state machine from outside the ordered stream, so replay reproduces the run
+exactly, and journal testing (@.claude/rules/testing.md) can serve as the primary test method.
 
 > **Design deferred.** The principle is recorded here; the mechanism is not designed yet.
-> Open questions include how reference-data and config updates are framed as commands, how
-> time is injected and at what granularity, and what all of this costs on the ingress path.
+> Open questions include how reference-data and config updates are framed as cluster messages,
+> how time is injected and at what granularity, and what all of this costs on the ingress path.
 > Do not implement against this section until that discussion has happened.
 
-## Import direction
+## Adding a package
 
-Dependencies point inward toward `common`. `domain` never imports a tier that performs I/O.
-A `PostToolUse` hook flags `domain/*.java` files importing `gateway`/`sequencer`/`egress` —
-treat that warning as a blocker, not a hint. The hook is a backstop for the Bazel visibility
-rules, not a replacement for them.
-
-## Adding a tier
-
-A new tier needs a row in the table above and a matching Bazel visibility rule, in the same
-commit. Do not create a package that no table row describes.
+A new package needs a row in the table above and a matching Bazel `visibility` declaration, in
+the same commit. Do not create a package that no table row describes.
