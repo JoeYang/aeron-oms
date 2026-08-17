@@ -14,6 +14,12 @@ JUNIT_JUPITER = "5.11.4"
 
 JUNIT_PLATFORM = "1.11.4"
 
+# Formatting and linting run through Bazel rather than a jar committed to the repo
+# or downloaded at runtime, so every machine resolves the same version.
+GOOGLE_JAVA_FORMAT = "1.36.1"
+
+CHECKSTYLE = "13.11.0"
+
 maven = use_extension("@rules_jvm_external//:extensions.bzl", "maven")
 maven.install(
     name = "maven",
@@ -24,6 +30,8 @@ maven.install(
         "org.junit.platform:junit-platform-console:%s" % JUNIT_PLATFORM,
         "org.junit.platform:junit-platform-launcher:%s" % JUNIT_PLATFORM,
         "org.junit.platform:junit-platform-reporting:%s" % JUNIT_PLATFORM,
+        "com.google.googlejavaformat:google-java-format:%s" % GOOGLE_JAVA_FORMAT,
+        "com.puppycrawl.tools:checkstyle:%s" % CHECKSTYLE,
     ],
     repositories = ["https://repo1.maven.org/maven2"],
 )
