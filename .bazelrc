@@ -16,3 +16,11 @@ build --jvmopt=--add-exports=java.base/jdk.internal.misc=ALL-UNNAMED
 
 test --test_output=errors
 test --test_summary=terse
+
+# CI only. Inert unless --config=ci is passed, so a local build is unaffected: putting a
+# disk cache in the unconditional `build` lines would change every developer's cache
+# location and disk usage to serve continuous integration.
+build:ci --disk_cache=~/.cache/bazel-disk
+build:ci --repository_cache=~/.cache/bazel-repo
+build:ci --color=no
+build:ci --show_timestamps
