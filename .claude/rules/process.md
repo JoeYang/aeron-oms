@@ -53,9 +53,16 @@ absolute. The local enforcement is deliberately not.
   once `MODULE.bazel` exists, and stays silent until then.
 - A warning is not permission. Opening a PR over a failing suite is a deliberate act, and
   the reason belongs in the PR description.
-- Real enforcement is a required status check on `main` in branch protection, added when CI
-  exists. A local hook guards one machine and can be bypassed; branch protection guards the
-  repository and cannot. Until that check exists, this gate rests on discipline.
+- CI runs the gate on every pull request: `.github/workflows/ci.yml`, reporting a check named
+  `gate`. It runs `scripts/test.sh` with `--nocache_test_results` — a cached pass does not
+  prove the suite executed — and `scripts/lint.sh`. It never runs `scripts/format.sh`, which
+  rewrites files.
+- Real enforcement is that check being **required** on `main` in branch protection. A local
+  hook guards one machine and can be bypassed; branch protection guards the repository.
+
+  **Sequencing:** the workflow must be on `main` before the check is required. A required check
+  that a branch cannot run blocks every merge permanently, because the workflow is read from
+  the pull request's own head.
 
 ## 4. A complete initiative
 
