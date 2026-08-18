@@ -1,0 +1,3 @@
+# Build tooling. The junit5.bzl macro is loaded by test targets across all packages.
+
+exports_files(["junit5.bzl"])

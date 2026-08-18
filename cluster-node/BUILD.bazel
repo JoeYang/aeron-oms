@@ -1,0 +1,15 @@
+load("@rules_java//java:defs.bzl", "java_binary")
+
+# Hosts ConsensusModule + ClusteredServiceContainer. The only package permitted to depend
+# on //cluster-service.
+java_binary(
+    name = "cluster-node",
+    srcs = glob(["src/main/java/**/*.java"]),
+    jvm_flags = ["--enable-native-access=ALL-UNNAMED"],
+    main_class = "io.joeyang.oms.cluster.node.ClusterNodeMain",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//cluster-service",
+        "//core",
+    ],
+)

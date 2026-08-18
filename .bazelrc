@@ -1,0 +1,12 @@
+# Pin the JDK in the build. Never inherit the ambient `java` from PATH.
+build --java_language_version=25
+build --java_runtime_version=remotejdk_25
+build --tool_java_language_version=25
+build --tool_java_runtime_version=remotejdk_25
+
+# Required for the FFM calls used by CPU pinning (java.lang.foreign is a
+# restricted API). Set now so it is proven before the pinning code lands.
+build --jvmopt=--enable-native-access=ALL-UNNAMED
+
+test --test_output=errors
+test --test_summary=terse

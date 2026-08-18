@@ -1,0 +1,17 @@
+load("@rules_java//java:defs.bzl", "java_library")
+load("//tools:junit5.bzl", "java_junit5_test")
+
+# Shared library. Every package may depend on core; core depends on nothing.
+# No java_binary here by design — core is not a deployable process.
+java_library(
+    name = "core",
+    srcs = glob(["src/main/java/**/*.java"]),
+    visibility = ["//visibility:public"],
+)
+
+java_junit5_test(
+    name = "core_test",
+    srcs = glob(["src/test/java/**/*.java"]),
+    test_package = "io.joeyang.oms.core",
+    deps = [":core"],
+)

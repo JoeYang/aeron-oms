@@ -1,0 +1,14 @@
+load("@rules_java//java:defs.bzl", "java_binary")
+
+# AeronCluster client + protocol adapters.
+#
+# Deliberately cannot depend on //cluster-service: that target's visibility excludes this
+# package, so adding the dependency fails the build rather than producing a warning.
+java_binary(
+    name = "gateway",
+    srcs = glob(["src/main/java/**/*.java"]),
+    jvm_flags = ["--enable-native-access=ALL-UNNAMED"],
+    main_class = "io.joeyang.oms.gateway.GatewayMain",
+    visibility = ["//visibility:public"],
+    deps = ["//core"],
+)
