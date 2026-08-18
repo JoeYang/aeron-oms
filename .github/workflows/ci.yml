@@ -1,0 +1,60 @@
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+# A superseded run tells you nothing. Cancel it rather than pay for it.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  gate:
+    name: gate
+    runs-on: ubuntu-24.04
+
+    steps:
+      - uses: actions/checkout@v7
+
+      # The runner ships both a real Bazel and Bazelisk, and .bazelversion only governs
+      # when `bazel` IS Bazelisk. Without this the pin is silently ignored.
+      - name: Route bazel through bazelisk
+        run: sudo ln -sf "$(command -v bazelisk)" /usr/local/bin/bazel
+
+      # Assert the pin took effect. A CI that quietly tests a different toolchain than a
+      # developer checkout is worse than no CI, because it reports green either way.
+      - name: Verify the pinned Bazel is the one running
+        run: |
+          expected="$(tr -d '[:space:]' < .bazelversion)"
+          actual="$(bazel --version | awk '{print $2}')"
+          echo "declared=${expected} running=${actual}"
+          if [ "${expected}" != "${actual}" ]; then
+            echo "::error::Bazel version drift: .bazelversion says ${expected}, running ${actual}"
+            exit 1
+          fi
+
+      - name: Restore Bazel caches
+        uses: actions/cache@v6
+        with:
+          path: |
+            ~/.cache/bazel-disk
+            ~/.cache/bazel-repo
+          key: bazel-${{ runner.os }}-${{ hashFiles('MODULE.bazel', '.bazelversion', '.bazelrc') }}
+          restore-keys: |
+            bazel-${{ runner.os }}-
+
+      # --nocache_test_results because a cached pass does not prove the tests ran here, and
+      # the suite starts a real MediaDriver whose whole point is running on this hardware.
+      # test.sh does not append //... once given arguments, so the target is explicit.
+      - name: Test
+        run: scripts/test.sh //... --config=ci --nocache_test_results
+
+      # The read-only gate: format check plus Checkstyle. Never scripts/format.sh, which
+      # rewrites files -- in CI that would mutate the runner and discard the result.
+      - name: Lint
+        run: scripts/lint.sh
