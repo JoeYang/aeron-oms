@@ -6,10 +6,15 @@ downstream services consume that stream to rebuild state deterministically.
 
 ## Status
 
-Skeleton. The Bazel build works and `bazel test //...` is green. There is no Aeron dependency
-and no OMS behaviour yet — the packages hold placeholders that prove the toolchain, not domain
-types. Keep the command table below honest: a listed command that does not run is worse than
-no table.
+Skeleton. The Bazel build works and `bazel test //...` is green. Aeron Cluster 1.52.2 is
+declared and proven to run — a test starts an embedded `MediaDriver` and connects a client —
+but no package uses Aeron beyond that test, and there is no OMS behaviour yet. The packages
+hold placeholders that prove the toolchain, not domain types. Keep the command table below
+honest: a listed command that does not run is worse than no table.
+
+Agrona reads `jdk.internal.misc.Unsafe`, so `.bazelrc` carries
+`--add-exports java.base/jdk.internal.misc=ALL-UNNAMED`. It is mandatory, not tuning: without
+it the first buffer allocation throws `IllegalAccessError`.
 
 Target runtime is **JDK 25**, pinned in the build as `remotejdk_25` rather than inherited from
 `PATH`. The choice is load-bearing: CPU pinning uses the FFM API

@@ -8,5 +8,11 @@ build --tool_java_runtime_version=remotejdk_25
 # restricted API). Set now so it is proven before the pinning code lands.
 build --jvmopt=--enable-native-access=ALL-UNNAMED
 
+# Mandatory for Agrona, not a tuning choice. Agrona reads jdk.internal.misc.Unsafe, which
+# JDK 25 does not export, so without this the first UnsafeBuffer construction throws
+# IllegalAccessError. `jdeps --jdk-internals` confirms Agrona is the only dependency that
+# touches JDK internals — the Aeron jars are clean — so no other export or open is needed.
+build --jvmopt=--add-exports=java.base/jdk.internal.misc=ALL-UNNAMED
+
 test --test_output=errors
 test --test_summary=terse

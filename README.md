@@ -38,6 +38,11 @@ The scripts run from any directory and pass extra arguments through to Bazel, so
 ## Status
 
 Skeleton. The build, the JUnit 5 test wiring, and the package boundaries work end to end.
-There is no Aeron dependency and no OMS behaviour yet — each package holds a placeholder that
-exists to prove the toolchain. Development follows a spec-first flow; see
-`openspec/` and `.claude/rules/process.md`.
+
+Aeron Cluster 1.52.2 is declared and proven to run: a test starts an embedded `MediaDriver`
+and connects a client, so the suite fails if the dependency resolves but cannot execute. No
+package uses Aeron yet beyond that test, and there is no OMS behaviour — each package still
+holds a placeholder.
+
+Development follows a spec-first flow; see `openspec/` and `.claude/rules/process.md`.
+Deferred work is tracked in `todo/`, and unbuilt options in `ideas/`.
