@@ -4,8 +4,8 @@ package io.joeyang.oms.cluster.service;
  * Placeholder for the clustered service package.
  *
  * <p>Once the Aeron dependency lands, this package holds the {@code ClusteredService}
- * implementation — the deterministic state machine the consensus module drives. Nothing here
- * may perform I/O or read an ambient clock. See {@code .claude/rules/architecture.md}.
+ * implementation — the deterministic state machine the consensus module drives. Nothing here may
+ * perform I/O or read an ambient clock. See {@code .claude/rules/architecture.md}.
  */
 public final class ServiceIdentity {
 

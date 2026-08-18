@@ -3,8 +3,8 @@ package io.joeyang.oms.core;
 /**
  * Placeholder shared type proving the build wiring end to end.
  *
- * <p>This exists so the toolchain has something real to compile and assert against. It carries
- * no OMS meaning and should be deleted once the first genuine shared type lands.
+ * <p>This exists so the toolchain has something real to compile and assert against. It carries no
+ * OMS meaning and should be deleted once the first genuine shared type lands.
  */
 public final class Greeting {
 

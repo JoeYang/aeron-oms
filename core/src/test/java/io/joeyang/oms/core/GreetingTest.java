@@ -12,7 +12,7 @@ class GreetingTest {
 
   @Test
   @DisplayName("greets a name")
-  void greetsAName() {
+  void greetsByName() {
     assertEquals("Hello, aeron!", Greeting.greet("aeron"));
   }
 
