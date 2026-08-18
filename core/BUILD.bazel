@@ -9,9 +9,17 @@ java_library(
     visibility = ["//visibility:public"],
 )
 
+# Aeron appears on the *test* deps only. The `core` library above stays Aeron-free until it
+# holds code that needs it — a declared dependency nothing calls is scaffolding. AeronRuntimeTest
+# proves the dependency runs on the pinned JDK; see openspec/specs/aeron-runtime.
 java_junit5_test(
     name = "core_test",
     srcs = glob(["src/test/java/**/*.java"]),
     test_package = "io.joeyang.oms.core",
-    deps = [":core"],
+    deps = [
+        ":core",
+        "@maven//:io_aeron_aeron_client",
+        "@maven//:io_aeron_aeron_driver",
+        "@maven//:org_agrona_agrona",
+    ],
 )
