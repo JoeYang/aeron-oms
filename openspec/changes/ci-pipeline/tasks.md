@@ -22,17 +22,21 @@
 ## 4. Verification
 
 - [x] 4.1 Confirm the workflow file is valid YAML
-- [ ] 4.2 Push and confirm the workflow runs and reports a status
-- [ ] 4.3 Confirm the version assertion passes on the runner
-- [ ] 4.4 Confirm the run reports tests as executed, not cached
+- [x] 4.2 Push and confirm the workflow runs and reports a status
+- [x] 4.3 Confirm the version assertion passes on the runner
+- [x] 4.4 Confirm the run reports tests as executed, not cached
 
 ## 5. Branch protection
 
-- [ ] 5.1 Read the actual check name from the first completed run
+Blocked until this change is on `main`. PRs #7 and #8 carry no workflow, so they report zero
+check runs; requiring `gate` before the workflow lands would make them permanently unmergeable.
+Apply immediately after merge.
+
+- [x] 5.1 Read the actual check name from the first completed run: `gate`
 - [ ] 5.2 Apply branch protection on `main` requiring that check
 - [ ] 5.3 Verify protection is present and names the reporting check
 
 ## 6. Documentation
 
-- [ ] 6.1 Update `process.md` where it says the gate rests on discipline
-- [ ] 6.2 Add the CI command to the `CLAUDE.md` command table if it belongs there
+- [x] 6.1 Update `process.md` where it says the gate rests on discipline
+- [x] 6.2 Add the CI command to the `CLAUDE.md` command table if it belongs there
