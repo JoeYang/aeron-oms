@@ -28,13 +28,13 @@
 
 ## 5. Branch protection
 
-Blocked until this change is on `main`. PRs #7 and #8 carry no workflow, so they report zero
-check runs; requiring `gate` before the workflow lands would make them permanently unmergeable.
-Apply immediately after merge.
+The workflow reached `main` when #10 merged, so protection was applied immediately after.
+Before that it was blocked: PRs #7 and #8 carried no workflow and reported zero check runs, so
+requiring `gate` early would have made them permanently unmergeable.
 
 - [x] 5.1 Read the actual check name from the first completed run: `gate`
-- [ ] 5.2 Apply branch protection on `main` requiring that check
-- [ ] 5.3 Verify protection is present and names the reporting check
+- [x] 5.2 Apply branch protection on `main` requiring that check
+- [x] 5.3 Verify protection is present and names the reporting check
 
 ## 6. Documentation
 
