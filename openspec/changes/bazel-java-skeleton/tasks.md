@@ -34,3 +34,12 @@
 - [x] 5.2 Update the layering hook in `.claude/settings.json` to match the new package names
 - [x] 5.3 Update `CLAUDE.md`: architecture block, and remove the genesis Status caveat for commands that now work
 - [x] 5.4 Update `README.md` so its design description matches what exists
+
+## 6. Developer entry points
+
+- [x] 6.1 Add `scripts/build.sh` wrapping `bazel build`, with pass-through arguments
+- [x] 6.2 Add `scripts/test.sh` wrapping `bazel test`, with pass-through arguments
+- [x] 6.3 Add `scripts/run.sh` to launch a named process binary, validating the name
+- [x] 6.4 Make the scripts runnable from any working directory
+- [x] 6.5 Verify each script exits non-zero when the underlying Bazel command fails
+- [x] 6.6 List the scripts in `CLAUDE.md` and `README.md`
