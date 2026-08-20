@@ -11,13 +11,21 @@ the consensus module performs sequencing.
 
 | Package | Bazel target | Responsibility | May depend on |
 |---|---|---|---|
-| core | `//core` | Shared library: value types, SBE codecs, buffer flyweights. No entry point. | (nothing) |
-| cluster-service | `//cluster-service` | The `ClusteredService` implementation — the deterministic state machine driven by the consensus module. | `core` |
+| sbe | `//sbe` | The message schema, XML only. No code. Changing it changes the log format. | (nothing) |
+| sbe-java | `//sbe-java` | Java codecs **generated** from `//sbe` at build time. No committed source. | `sbe` |
+| core | `//core` | Shared library: value types, ports such as the clock. No entry point. | `sbe-java` |
+| cluster-service | `//cluster-service` | The `ClusteredService` implementation — the deterministic state machine driven by the consensus module. | `core`, `sbe-java` |
 | cluster-node | `//cluster-node` | Hosts `ConsensusModule` and `ClusteredServiceContainer`. | `cluster-service`, `core` |
-| gateway | `//gateway` | `AeronCluster` client plus protocol adapters (FIX, SBE). | `core` |
+| gateway | `//gateway` | `AeronCluster` client plus protocol adapters (FIX, SBE). | `core`, `sbe-java` |
 | driver | `//driver` | Standalone `MediaDriver` launcher. | `core` |
 
-One Bazel package per deployable process, plus `core` as the shared library.
+One Bazel package per deployable process, plus `core` as the shared library and `sbe`/`sbe-java`
+as the message definition and its generated codecs.
+
+Codecs live in their own package rather than in `core` because they change on a different
+cadence and to a different standard: `core` is hand-written and reviewed line by line, while
+`sbe-java` is machine output that is never read in review. Keeping them apart stops generated
+code being edited by hand, and keeps `core` free of anything the schema drags in.
 
 ## Dependency direction is enforced, not documented
 
