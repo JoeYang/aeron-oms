@@ -1,0 +1,50 @@
+load("@rules_java//java:defs.bzl", "java_binary", "java_library")
+load("//tools:junit5.bzl", "java_junit5_test")
+
+# Generated Java codecs. Nothing here is committed: the codecs are produced from
+# //sbe:message-schema.xml on every build, so they cannot drift from the schema.
+
+java_binary(
+    name = "sbe_tool",
+    main_class = "uk.co.real_logic.sbe.SbeTool",
+    runtime_deps = ["@maven//:uk_co_real_logic_sbe_tool"],
+)
+
+genrule(
+    name = "codecs_srcjar",
+    srcs = ["//sbe:message-schema.xml"],
+    outs = ["codecs.srcjar"],
+    cmd = """
+set -euo pipefail
+GEN=$$(mktemp -d)
+$(location :sbe_tool) \
+    --jvm_flag=-Dsbe.output.dir=$$GEN \
+    --jvm_flag=-Dsbe.target.language=Java \
+    --jvm_flag=-Dsbe.validation.stop.on.error=true \
+    --jvm_flag=-Dsbe.validation.warnings.fatal=true \
+    $(location //sbe:message-schema.xml)
+(cd $$GEN && find . -name '*.java' | sed 's|^\\./||' | awk -v d="$$GEN" '{print $$0 "=" d "/" $$0}') > $$GEN/entries
+$(location @bazel_tools//tools/zip:zipper) c $@ @$$GEN/entries
+""",
+    tools = [
+        ":sbe_tool",
+        "@bazel_tools//tools/zip:zipper",
+    ],
+)
+
+java_library(
+    name = "sbe-java",
+    srcs = [":codecs_srcjar"],
+    visibility = ["//visibility:public"],
+    deps = ["@maven//:org_agrona_agrona"],
+)
+
+java_junit5_test(
+    name = "sbe_java_test",
+    srcs = glob(["src/test/java/**/*.java"]),
+    test_package = "io.joeyang.oms.sbe",
+    deps = [
+        ":sbe-java",
+        "@maven//:org_agrona_agrona",
+    ],
+)
