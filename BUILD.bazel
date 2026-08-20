@@ -1,0 +1,5 @@
+# Root package. Exists so the Maven lock file has a label (//:maven_install.json);
+# rules_jvm_external resolves lock_file as a Bazel label, which requires a package here.
+# Deliberately declares no targets -- code lives in the per-process packages.
+
+exports_files(["maven_install.json"])
