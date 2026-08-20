@@ -1,0 +1,8 @@
+# The message schema. This directory holds XML only -- no generated code is committed
+# anywhere, so the schema is the single source of truth and drift is impossible.
+#
+# Changing this file changes the log format. See .claude/rules/api-design.md and the
+# "ask first" list in CLAUDE.md: schema id and message ids are permanent once messages
+# have been written to a cluster log.
+
+exports_files(["message-schema.xml"])
