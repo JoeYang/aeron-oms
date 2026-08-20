@@ -54,6 +54,7 @@ adopting stacked PRs — see @.claude/rules/stacked-prs.md.
 | Run a process | `scripts/run.sh cluster-node \| gateway \| driver` |
 | Format | `scripts/format.sh` (google-java-format, rewrites files) |
 | Lint | `scripts/lint.sh` (format check + Checkstyle, read-only) |
+| SBE — change a message | `/sbe-gen` (regenerate, inspect, diff wire identity, test) |
 | Spec — start initiative | `openspec new change <name>` |
 | Spec — validate | `openspec validate <name>` |
 | Spec — archive when merged | `openspec archive <name>` |
