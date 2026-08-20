@@ -11,7 +11,9 @@ complete description of a run, and replaying it reproduces state exactly.
 
 | Target | Role |
 |---|---|
-| `//core` | Shared library: value types, codecs. No entry point. |
+| `//sbe` | The message schema, XML only. Changing it changes the log format. |
+| `//sbe-java` | Java codecs generated from `//sbe` at build time. Nothing committed. |
+| `//core` | Shared library: value types and ports, such as the clock. No entry point. |
 | `//cluster-service` | The `ClusteredService` — deterministic state machine. |
 | `//cluster-node` | Hosts `ConsensusModule` and `ClusteredServiceContainer`. |
 | `//gateway` | `AeronCluster` client and protocol adapters. |

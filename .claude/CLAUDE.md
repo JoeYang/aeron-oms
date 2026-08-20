@@ -64,7 +64,9 @@ Aeron Cluster. Dependency direction is enforced by Bazel `visibility`, not conve
 @.claude/rules/architecture.md.
 
 ```
-//core             shared library: value types, SBE codecs. No entry point.
+//sbe              the message schema, XML only. Changing it changes the log format
+//sbe-java         Java codecs generated from //sbe at build time; nothing committed
+//core             shared library: value types and ports (e.g. the clock). No entry point.
 //cluster-service  ClusteredService — the deterministic state machine
 //cluster-node     hosts ConsensusModule + ClusteredServiceContainer
 //gateway          AeronCluster client + protocol adapters (FIX, SBE)

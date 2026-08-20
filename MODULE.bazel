@@ -20,6 +20,10 @@ GOOGLE_JAVA_FORMAT = "1.36.1"
 
 CHECKSTYLE = "13.11.0"
 
+# SBE codec generator. Depends on agrona 2.5.0 -- the version already pinned above -- so it
+# introduces no second Agrona on the path.
+SBE = "1.39.0"
+
 # Aeron Cluster. Declared as granular artifacts rather than the `aeron-all` fat jar, so each
 # target states only the layer it uses; aeron-all would also bundle a second copy of Agrona.
 # The dependency graph is a linear chain:
@@ -47,6 +51,7 @@ maven.install(
         "org.junit.platform:junit-platform-reporting:%s" % JUNIT_PLATFORM,
         "com.google.googlejavaformat:google-java-format:%s" % GOOGLE_JAVA_FORMAT,
         "com.puppycrawl.tools:checkstyle:%s" % CHECKSTYLE,
+        "uk.co.real-logic:sbe-tool:%s" % SBE,
     ],
     # Without this the lock SILENTLY WINS: a version changed here but not repinned is
     # ignored, the build succeeds, and the edit has no effect. Verified -- declaring agrona
