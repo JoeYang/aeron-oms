@@ -20,7 +20,17 @@ if ! command -v bazel >/dev/null 2>&1; then
   exit 127
 fi
 
-mapfile -t sources < <(find . -name '*.java' -not -path './bazel-*' -printf "${ROOT}/%P\n")
+# Lint exactly what would be committed: tracked files plus untracked ones git would add,
+# and nothing it is told to ignore. A bare `find` also picks up generated code extracted for
+# IDE indexing and other ignored scratch, which fails the gate on files nobody owns -- while
+# CI stays green, because CI only ever sees tracked files. Local and CI must agree.
+if git rev-parse --git-dir >/dev/null 2>&1; then
+  mapfile -t sources < <(
+    git ls-files --cached --others --exclude-standard -- '*.java' | sed "s|^|${ROOT}/|"
+  )
+else
+  mapfile -t sources < <(find . -name '*.java' -not -path './bazel-*' -printf "${ROOT}/%P\n")
+fi
 
 if [ "${#sources[@]}" -eq 0 ]; then
   echo "no Java sources found"
