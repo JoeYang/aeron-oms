@@ -48,6 +48,11 @@ maven.install(
         "com.google.googlejavaformat:google-java-format:%s" % GOOGLE_JAVA_FORMAT,
         "com.puppycrawl.tools:checkstyle:%s" % CHECKSTYLE,
     ],
+    # Without this the lock SILENTLY WINS: a version changed here but not repinned is
+    # ignored, the build succeeds, and the edit has no effect. Verified -- declaring agrona
+    # 2.4.1 against a lock holding 2.5.0 built cleanly and used 2.5.0. Default is False.
+    fail_if_repin_required = True,
+    lock_file = "//:maven_install.json",
     repositories = ["https://repo1.maven.org/maven2"],
 )
 use_repo(maven, "maven")
