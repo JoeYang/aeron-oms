@@ -33,13 +33,13 @@ failing test first. Schema work is its own commit, before any code that uses it.
 
 ## 4. Gateway and scripts (PR 3, stacked on PR 2)
 
-- [ ] 4.1 Write the failing test for the gateway encode path: outbound timestamp comes
+- [x] 4.1 Write the failing test for the gateway encode path: outbound timestamp comes
       through the `Clock` port.
-- [ ] 4.2 Implement `HeartbeatRoundTrip` in `//gateway`: connect, offer, poll egress,
+- [x] 4.2 Implement `HeartbeatRoundTrip` in `//gateway`: connect, offer, poll egress,
       print sequenced timestamp and round-trip time.
-- [ ] 4.3 Wire `scripts/run.sh cluster-node` and `scripts/run.sh gateway` with the
+- [x] 4.3 Wire `scripts/run.sh cluster-node` and `scripts/run.sh gateway` with the
       required JVM flags; verify the two-terminal round trip by hand.
-- [ ] 4.4 Sync `README.md` command table and docs; open PR 3.
+- [x] 4.4 Sync `README.md` command table and docs; open PR 3.
 
 ## 5. Close out
 
