@@ -86,8 +86,9 @@ class HeartbeatCodecTest {
   void wireIdentityIsPinned() {
     assertEquals(1, HeartbeatEncoder.SCHEMA_ID, "schema id is part of the log format");
     assertEquals(1, HeartbeatEncoder.TEMPLATE_ID, "template id is part of the log format");
-    assertEquals(0, HeartbeatEncoder.SCHEMA_VERSION, "schema version is part of the log format");
-    assertEquals(8, HeartbeatEncoder.BLOCK_LENGTH, "one int64 field");
+    assertEquals(1, HeartbeatEncoder.SCHEMA_VERSION, "schema version is part of the log format");
+    assertEquals(
+        32, HeartbeatEncoder.BLOCK_LENGTH, "8 bytes of fields plus 24 reserved for growth");
   }
 
   @Test
@@ -95,6 +96,17 @@ class HeartbeatCodecTest {
     final long length = encodeAt(0, 1L);
 
     assertEquals(headerEncoder.encodedLength() + HeartbeatEncoder.BLOCK_LENGTH, length);
-    assertEquals(16L, length, "8 byte header plus one int64");
+    assertEquals(40L, length, "8 byte header plus the 32 byte reserved block");
+  }
+
+  /**
+   * The null sentinel is how a decoder reports a field absent from an older message. With {@code
+   * minValue="0"} it can never also be a legal value, so "absent" and "sent" stay distinguishable
+   * for the life of the log.
+   */
+  @Test
+  void nullSentinelIsOutsideTheLegalRange() {
+    assertEquals(0L, HeartbeatEncoder.timestampNanosMinValue(), "legal range starts at zero");
+    assertEquals(Long.MIN_VALUE, HeartbeatEncoder.timestampNanosNullValue(), "the null sentinel");
   }
 }
