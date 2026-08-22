@@ -44,4 +44,13 @@ esac
 # A plain `bazel run` holds the workspace lock for the process's whole lifetime, which
 # makes the two-terminal demo (node + gateway) deadlock on "Another command is running".
 bazel build "//${process}:${process}"
+
+# Optional launch-layer CPU pinning: OMS_TASKSET="0-7" confines every thread of the
+# process — including JVM-internal ones, by mask inheritance — to the given cores.
+# This is one of the four pinning layers (trading-latency.md); the per-thread runtime
+# layer arrives with the FFM sched_setaffinity work, and the kernel isolation layer
+# needs boot parameters this script cannot supply.
+if [ -n "${OMS_TASKSET:-}" ]; then
+  exec taskset -c "${OMS_TASKSET}" "bazel-bin/${process}/${process}" "$@"
+fi
 exec "bazel-bin/${process}/${process}" "$@"
