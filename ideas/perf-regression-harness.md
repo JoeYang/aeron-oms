@@ -106,3 +106,24 @@ branch or repo avoids that but adds machinery. For solo work, on-demand A/B with
 history may be enough, and is far simpler.
 
 Worth deciding before the first result is written, not after.
+
+## First building block exists (parked 2026-08-22)
+
+The gateway bench mode was built and validated, then parked here rather than merged —
+closed PR #26, code on branch `feat/perf-bench`. What it does: `-Doms.gateway.warmup=N`
+discards the first N round trips and prints `min/p50/p90/p99/max` over the remainder,
+`Locale.ROOT`-pinned. Its output matched an independent external parser byte for byte on
+three configurations, so the measurement convention is proven.
+
+The protocol that produced comparable numbers all day: fresh journal, isolated port range,
+3,000 closed-loop round trips, first 2,000 discarded, percentiles over the last 1,000.
+
+Recorded numbers (ThinkPad P16 Gen 3, 20 threads, no core isolation, 2026-08-22):
+
+| configuration | min | p50 | p90 | p99 | max (µs) |
+|---|---|---|---|---|---|
+| default | 30.0 | 253.4 | 459.8 | 4,868.5 | 5,963.6 |
+| `-Doms.lowlatency` + `-Doms.ipc` | 1.8 | 2.5 | 3.8 | 17.3 | 1,188.5 |
+
+The lesson the harness must encode: never measure a backoff system with sparse pokes —
+one message per second read 4.3 ms where the burst median was 242 µs, on identical code.
