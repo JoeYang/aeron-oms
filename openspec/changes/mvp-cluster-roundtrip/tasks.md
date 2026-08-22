@@ -5,20 +5,20 @@ failing test first. Schema work is its own commit, before any code that uses it.
 
 ## 1. Schema hardening (PR 1, first commit — own commit per commit rules)
 
-- [ ] 1.1 Extend `HeartbeatCodecTest` first: block length 32 asserted in
+- [x] 1.1 Extend `HeartbeatCodecTest` first: block length 32 asserted in
       `wireIdentityIsPinned` and `encodedLengthIsHeaderPlusBlock`; add the minValue
       scenario. Watch the suite fail against the current schema.
-- [ ] 1.2 Edit `sbe/message-schema.xml`: `blockLength="32"` on Heartbeat,
+- [x] 1.2 Edit `sbe/message-schema.xml`: `blockLength="32"` on Heartbeat,
       `minValue="0"` on `TimestampNanos`. Review via `/sbe-gen`; suite green.
 
 ## 2. State machine (PR 1, remainder)
 
-- [ ] 2.1 Write failing unit tests for `OmsClusteredService` with a fake `ClientSession`
+- [x] 2.1 Write failing unit tests for `OmsClusteredService` with a fake `ClientSession`
       honouring real semantics (`BACK_PRESSURED`, `NOT_CONNECTED`, `CLOSED`): echo carries
       sequenced time, unknown template ignored, back-pressure retried, one echo total.
-- [ ] 2.2 Implement `OmsClusteredService` in `//cluster-service`; constructible with no
+- [x] 2.2 Implement `OmsClusteredService` in `//cluster-service`; constructible with no
       Aeron running; empty remaining callbacks. Suite green.
-- [ ] 2.3 Update `.claude/rules/architecture.md` table row for `cluster-service` in the
+- [x] 2.3 Update `.claude/rules/architecture.md` table row for `cluster-service` in the
       same PR that makes it true. Open PR 1.
 
 ## 3. Node hosting (PR 2, stacked on PR 1)
