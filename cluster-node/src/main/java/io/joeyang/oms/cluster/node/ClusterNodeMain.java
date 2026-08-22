@@ -43,18 +43,20 @@ public final class ClusterNodeMain {
     final boolean clean = Boolean.getBoolean("oms.cluster.clean");
     final int basePort = Integer.getInteger("oms.cluster.port", 9002);
     final boolean lowLatency = Boolean.getBoolean("oms.lowlatency");
+    final boolean ipc = Boolean.getBoolean("oms.ipc");
 
     final ShutdownSignalBarrier barrier = new ShutdownSignalBarrier();
     boolean failed = false;
     try (SingleNodeCluster node =
         SingleNodeCluster.launch(
             new SingleNodeCluster.Config(
-                base, clean, basePort, new OmsClusteredService(), lowLatency))) {
+                base, clean, basePort, new OmsClusteredService(), lowLatency, ipc))) {
       node.failure().whenComplete((error, ignored) -> barrier.signal());
 
       System.out.println("cluster-node up: single member, quorum of one");
       System.out.println("  journal : " + new File(base, "node-0") + "/{archive,consensus}");
-      System.out.println("  ingress : localhost:" + basePort);
+      System.out.println(
+          "  ingress : " + (ipc ? "aeron:ipc (same-host clients)" : "localhost:" + basePort));
       System.out.println(
           "  clean   : " + clean + " (reset with --jvm_flag=-Doms.cluster.clean=true)");
       System.out.println(
