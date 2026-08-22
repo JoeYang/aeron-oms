@@ -11,3 +11,6 @@
 
 # Lavish review artifacts
 .lavish/
+
+# Cluster runtime state and journals from scripts/run.sh (never committed)
+/data/
