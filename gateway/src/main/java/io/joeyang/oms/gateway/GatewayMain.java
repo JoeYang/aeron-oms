@@ -4,6 +4,8 @@ import io.aeron.cluster.client.AeronCluster;
 import io.aeron.driver.MediaDriver;
 import io.aeron.driver.ThreadingMode;
 import io.joeyang.oms.core.time.SystemClock;
+import org.agrona.concurrent.BusySpinIdleStrategy;
+import org.agrona.concurrent.YieldingIdleStrategy;
 
 /**
  * Entry point for the gateway process: an {@code AeronCluster} client that streams Heartbeats into
@@ -35,13 +37,21 @@ public final class GatewayMain {
         "gateway: sending %d heartbeats to localhost:%d, one per %d ms%n",
         count, basePort, intervalMs);
 
+    final MediaDriver.Context driverContext =
+        new MediaDriver.Context()
+            .threadingMode(ThreadingMode.SHARED)
+            .dirDeleteOnStart(true)
+            .dirDeleteOnShutdown(true);
+    if (Boolean.getBoolean("oms.lowlatency")) {
+      driverContext
+          .threadingMode(ThreadingMode.DEDICATED)
+          .conductorIdleStrategy(new YieldingIdleStrategy())
+          .senderIdleStrategy(new BusySpinIdleStrategy())
+          .receiverIdleStrategy(new BusySpinIdleStrategy());
+    }
+
     final HeartbeatRoundTrip roundTrip = new HeartbeatRoundTrip();
-    try (MediaDriver driver =
-            MediaDriver.launchEmbedded(
-                new MediaDriver.Context()
-                    .threadingMode(ThreadingMode.SHARED)
-                    .dirDeleteOnStart(true)
-                    .dirDeleteOnShutdown(true));
+    try (MediaDriver driver = MediaDriver.launchEmbedded(driverContext);
         AeronCluster cluster =
             AeronCluster.connect(
                 new AeronCluster.Context()

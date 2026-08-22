@@ -42,12 +42,14 @@ public final class ClusterNodeMain {
     final File base = baseDir();
     final boolean clean = Boolean.getBoolean("oms.cluster.clean");
     final int basePort = Integer.getInteger("oms.cluster.port", 9002);
+    final boolean lowLatency = Boolean.getBoolean("oms.lowlatency");
 
     final ShutdownSignalBarrier barrier = new ShutdownSignalBarrier();
     boolean failed = false;
     try (SingleNodeCluster node =
         SingleNodeCluster.launch(
-            new SingleNodeCluster.Config(base, clean, basePort, new OmsClusteredService()))) {
+            new SingleNodeCluster.Config(
+                base, clean, basePort, new OmsClusteredService(), lowLatency))) {
       node.failure().whenComplete((error, ignored) -> barrier.signal());
 
       System.out.println("cluster-node up: single member, quorum of one");
@@ -55,6 +57,8 @@ public final class ClusterNodeMain {
       System.out.println("  ingress : localhost:" + basePort);
       System.out.println(
           "  clean   : " + clean + " (reset with --jvm_flag=-Doms.cluster.clean=true)");
+      System.out.println(
+          "  profile : " + (lowLatency ? "low-latency (dedicated + busy-spin)" : "default"));
       System.out.println("Ctrl+C to stop.");
 
       barrier.await();
