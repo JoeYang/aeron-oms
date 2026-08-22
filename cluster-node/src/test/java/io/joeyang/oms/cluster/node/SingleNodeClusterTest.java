@@ -42,7 +42,17 @@ class SingleNodeClusterTest {
 
   private static SingleNodeCluster launch(
       final File base, final boolean clean, final int port, final ClusteredService service) {
-    return SingleNodeCluster.launch(new SingleNodeCluster.Config(base, clean, port, service));
+    return SingleNodeCluster.launch(
+        new SingleNodeCluster.Config(base, clean, port, service, false));
+  }
+
+  @Test
+  void lowLatencyProfileStillRoundTrips() {
+    try (SingleNodeCluster node =
+        SingleNodeCluster.launch(
+            new SingleNodeCluster.Config(tempDir, true, 21142, new OmsClusteredService(), true))) {
+      roundTrip(node, 21142);
+    }
   }
 
   private static long roundTrip(final SingleNodeCluster node, final int basePort) {

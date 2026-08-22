@@ -12,6 +12,8 @@ import io.aeron.driver.ThreadingMode;
 import java.io.File;
 import java.util.concurrent.CompletableFuture;
 import org.agrona.CloseHelper;
+import org.agrona.concurrent.BusySpinIdleStrategy;
+import org.agrona.concurrent.YieldingIdleStrategy;
 
 /**
  * Hosts everything one cluster member needs — MediaDriver, Archive, ConsensusModule and the service
@@ -32,8 +34,11 @@ public final class SingleNodeCluster implements AutoCloseable {
    * @param basePort first of five consecutive localhost ports: ingress, consensus, log, catchup,
    *     archive control
    * @param service the state machine to host
+   * @param lowLatency dedicated threading and busy-spin idle strategies on the message path; buys
+   *     latency with cores — an explicit choice, never the default
    */
-  public record Config(File baseDir, boolean clean, int basePort, ClusteredService service) {}
+  public record Config(
+      File baseDir, boolean clean, int basePort, ClusteredService service, boolean lowLatency) {}
 
   private final ClusteredMediaDriver driver;
   private final ClusteredServiceContainer container;
@@ -72,37 +77,57 @@ public final class SingleNodeCluster implements AutoCloseable {
             + (port + 4);
     final CompletableFuture<Throwable> failure = new CompletableFuture<>();
 
+    final MediaDriver.Context driverContext =
+        new MediaDriver.Context()
+            .aeronDirectoryName(driverDir)
+            .threadingMode(ThreadingMode.SHARED)
+            .dirDeleteOnStart(true);
+    final Archive.Context archiveContext =
+        new Archive.Context()
+            .aeronDirectoryName(driverDir)
+            .archiveDir(archiveDir)
+            .controlChannel("aeron:udp?endpoint=localhost:" + (port + 4))
+            .replicationChannel("aeron:udp?endpoint=localhost:0")
+            .threadingMode(ArchiveThreadingMode.SHARED)
+            .deleteArchiveOnStart(config.clean());
+    final ConsensusModule.Context consensusContext =
+        new ConsensusModule.Context()
+            .aeronDirectoryName(driverDir)
+            .clusterDir(consensusDir)
+            .clusterMemberId(0)
+            .clusterMembers(members)
+            .clusterClock(new NanosecondClusterClock())
+            .ingressChannel("aeron:udp?term-length=64k")
+            .replicationChannel("aeron:udp?endpoint=localhost:0")
+            .deleteDirOnStart(config.clean());
+    final ClusteredServiceContainer.Context containerContext =
+        new ClusteredServiceContainer.Context()
+            .aeronDirectoryName(driverDir)
+            .clusterDir(consensusDir)
+            .clusteredService(new FailFastClusteredService(config.service(), failure));
+
+    if (config.lowLatency()) {
+      // Latency is bought with cores: every duty cycle on the message path spins instead
+      // of parking, so no hop ever pays a wakeup. The conductor and archive housekeeping
+      // stay on yield — they are not on the message path.
+      driverContext
+          .threadingMode(ThreadingMode.DEDICATED)
+          .conductorIdleStrategy(new YieldingIdleStrategy())
+          .senderIdleStrategy(new BusySpinIdleStrategy())
+          .receiverIdleStrategy(new BusySpinIdleStrategy());
+      archiveContext
+          .threadingMode(ArchiveThreadingMode.DEDICATED)
+          .idleStrategySupplier(YieldingIdleStrategy::new)
+          .recorderIdleStrategySupplier(BusySpinIdleStrategy::new);
+      consensusContext.idleStrategySupplier(BusySpinIdleStrategy::new);
+      containerContext.idleStrategySupplier(BusySpinIdleStrategy::new);
+    }
+
     ClusteredMediaDriver driver = null;
     ClusteredServiceContainer container = null;
     try {
-      driver =
-          ClusteredMediaDriver.launch(
-              new MediaDriver.Context()
-                  .aeronDirectoryName(driverDir)
-                  .threadingMode(ThreadingMode.SHARED)
-                  .dirDeleteOnStart(true),
-              new Archive.Context()
-                  .aeronDirectoryName(driverDir)
-                  .archiveDir(archiveDir)
-                  .controlChannel("aeron:udp?endpoint=localhost:" + (port + 4))
-                  .replicationChannel("aeron:udp?endpoint=localhost:0")
-                  .threadingMode(ArchiveThreadingMode.SHARED)
-                  .deleteArchiveOnStart(config.clean()),
-              new ConsensusModule.Context()
-                  .aeronDirectoryName(driverDir)
-                  .clusterDir(consensusDir)
-                  .clusterMemberId(0)
-                  .clusterMembers(members)
-                  .clusterClock(new NanosecondClusterClock())
-                  .ingressChannel("aeron:udp?term-length=64k")
-                  .replicationChannel("aeron:udp?endpoint=localhost:0")
-                  .deleteDirOnStart(config.clean()));
-      container =
-          ClusteredServiceContainer.launch(
-              new ClusteredServiceContainer.Context()
-                  .aeronDirectoryName(driverDir)
-                  .clusterDir(consensusDir)
-                  .clusteredService(new FailFastClusteredService(config.service(), failure)));
+      driver = ClusteredMediaDriver.launch(driverContext, archiveContext, consensusContext);
+      container = ClusteredServiceContainer.launch(containerContext);
       return new SingleNodeCluster(driver, container, failure, driverDir);
     } catch (final RuntimeException e) {
       CloseHelper.quietCloseAll(container, driver);
