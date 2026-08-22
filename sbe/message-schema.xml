@@ -2,8 +2,8 @@
 <sbe:messageSchema xmlns:sbe="http://fixprotocol.io/2016/sbe"
                    package="io.joeyang.oms.sbe"
                    id="1"
-                   version="0"
-                   semanticVersion="0.1"
+                   version="1"
+                   semanticVersion="0.2"
                    description="aeron-oms message schema"
                    byteOrder="littleEndian">
   <types>
@@ -13,10 +13,14 @@
       <type name="schemaId"    primitiveType="uint16"/>
       <type name="version"     primitiveType="uint16"/>
     </composite>
-    <type name="TimestampNanos" primitiveType="int64" description="Nanoseconds since the Unix epoch."/>
+    <type name="TimestampNanos" primitiveType="int64" minValue="0"
+          description="Nanoseconds since the Unix epoch. minValue keeps the null sentinel illegal."/>
   </types>
 
-  <sbe:message name="Heartbeat" id="1" description="Liveness probe carrying a sequenced timestamp.">
+  <!-- blockLength reserves 24 bytes beyond the current fields, so future appends never move
+       the block length. Layout amendment decided 2026-08-22, before any journal existed. -->
+  <sbe:message name="Heartbeat" id="1" blockLength="32"
+               description="Liveness probe carrying a sequenced timestamp.">
     <field name="timestampNanos" id="1" type="TimestampNanos"/>
   </sbe:message>
 </sbe:messageSchema>

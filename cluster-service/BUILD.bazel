@@ -10,12 +10,24 @@ java_library(
     name = "cluster-service",
     srcs = glob(["src/main/java/**/*.java"]),
     visibility = ["//cluster-node:__pkg__"],
-    deps = ["//core"],
+    deps = [
+        "//core",
+        "//sbe-java",
+        "@maven//:io_aeron_aeron_client",
+        "@maven//:io_aeron_aeron_cluster",
+        "@maven//:org_agrona_agrona",
+    ],
 )
 
 java_junit5_test(
     name = "cluster_service_test",
     srcs = glob(["src/test/java/**/*.java"]),
     test_package = "io.joeyang.oms.cluster.service",
-    deps = [":cluster-service"],
+    deps = [
+        ":cluster-service",
+        "//sbe-java",
+        "@maven//:io_aeron_aeron_client",
+        "@maven//:io_aeron_aeron_cluster",
+        "@maven//:org_agrona_agrona",
+    ],
 )

@@ -1,6 +1,6 @@
 package io.joeyang.oms.cluster.node;
 
-import io.joeyang.oms.cluster.service.ServiceIdentity;
+import io.joeyang.oms.cluster.service.OmsClusteredService;
 import io.joeyang.oms.core.Greeting;
 
 /**
@@ -21,7 +21,9 @@ public final class ClusterNodeMain {
    */
   public static void main(final String[] args) {
     System.out.println(Greeting.greet("cluster-node"));
-    System.out.println("service: " + ServiceIdentity.qualifiedName(0));
+    // Constructing the service proves the visibility edge; hosting it arrives with the
+    // single-node launcher (mvp-cluster-roundtrip, PR 2).
+    System.out.println("service: " + new OmsClusteredService().getClass().getSimpleName());
     System.out.println("java: " + Runtime.version());
   }
 }
