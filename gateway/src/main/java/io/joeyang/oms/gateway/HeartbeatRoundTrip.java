@@ -10,6 +10,8 @@ import io.joeyang.oms.sbe.MessageHeaderDecoder;
 import io.joeyang.oms.sbe.MessageHeaderEncoder;
 import java.io.PrintStream;
 import java.time.Instant;
+import java.util.Arrays;
+import java.util.Locale;
 import org.agrona.DirectBuffer;
 import org.agrona.MutableDirectBuffer;
 import org.agrona.concurrent.UnsafeBuffer;
@@ -59,10 +61,12 @@ final class HeartbeatRoundTrip implements EgressListener {
       final AeronCluster cluster,
       final Clock clock,
       final int count,
+      final int warmup,
       final long intervalMs,
       final PrintStream out)
       throws InterruptedException {
     final UnsafeBuffer buffer = new UnsafeBuffer(new byte[64]);
+    final long[] rttNanosByMessage = new long[count];
 
     for (int i = 1; i <= count; i++) {
       echoedNanos = Long.MIN_VALUE;
@@ -80,6 +84,7 @@ final class HeartbeatRoundTrip implements EgressListener {
         Thread.onSpinWait();
       }
       final long rttNanos = System.nanoTime() - sentAt;
+      rttNanosByMessage[i - 1] = rttNanos;
 
       out.printf(
           "heartbeat %2d/%d  sequenced=%d ns  (%s)  rtt=%.1f us%n",
@@ -89,6 +94,32 @@ final class HeartbeatRoundTrip implements EgressListener {
         Thread.sleep(intervalMs);
       }
     }
+
+    if (warmup > 0 && warmup < count) {
+      out.println(summarize(Arrays.copyOfRange(rttNanosByMessage, warmup, count)));
+    }
+  }
+
+  /**
+   * Percentiles over the measured window, warmup already excluded. Cold samples measure the JIT and
+   * parked duty cycles, not the system — mixing them in is how a benchmark lies.
+   */
+  static String summarize(final long[] measuredRttNanos) {
+    final long[] sorted = measuredRttNanos.clone();
+    Arrays.sort(sorted);
+    return String.format(
+        Locale.ROOT,
+        "bench: n=%d min=%.1f p50=%.1f p90=%.1f p99=%.1f max=%.1f (us)",
+        sorted.length,
+        sorted[0] / 1_000.0,
+        percentile(sorted, 50) / 1_000.0,
+        percentile(sorted, 90) / 1_000.0,
+        percentile(sorted, 99) / 1_000.0,
+        sorted[sorted.length - 1] / 1_000.0);
+  }
+
+  private static long percentile(final long[] sorted, final int p) {
+    return sorted[Math.min(sorted.length - 1, p * sorted.length / 100)];
   }
 
   private static void checkDeadline(final long deadline, final String what) {

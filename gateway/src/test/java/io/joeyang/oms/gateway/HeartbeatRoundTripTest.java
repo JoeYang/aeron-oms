@@ -13,6 +13,19 @@ import org.junit.jupiter.api.Test;
 /** The outbound stamp must come through the {@code Clock} port — pinned with a frozen clock. */
 class HeartbeatRoundTripTest {
 
+  /** 100 samples of 1..100 µs: the percentile convention matches the external protocol. */
+  @Test
+  void summarizesTheMeasuredWindow() {
+    final long[] rtts = new long[100];
+    for (int i = 0; i < 100; i++) {
+      rtts[i] = (i + 1) * 1_000L;
+    }
+
+    assertEquals(
+        "bench: n=100 min=1.0 p50=51.0 p90=91.0 p99=100.0 max=100.0 (us)",
+        HeartbeatRoundTrip.summarize(rtts));
+  }
+
   @Test
   void encodesTheClockPortsTime() {
     final UnsafeBuffer buffer = new UnsafeBuffer(new byte[64]);

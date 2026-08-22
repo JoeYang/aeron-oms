@@ -32,12 +32,13 @@ public final class GatewayMain {
   public static void main(final String[] args) throws InterruptedException {
     final int basePort = Integer.getInteger("oms.cluster.port", 9002);
     final int count = Integer.getInteger("oms.gateway.count", 10);
+    final int warmup = Integer.getInteger("oms.gateway.warmup", 0);
     final long intervalMs = Long.getLong("oms.gateway.interval.ms", 1_000L);
 
     final boolean ipc = Boolean.getBoolean("oms.ipc");
     System.out.printf(
-        "gateway: sending %d heartbeats via %s, one per %d ms%n",
-        count, ipc ? "aeron:ipc" : "localhost:" + basePort, intervalMs);
+        "gateway: sending %d heartbeats via %s, one per %d ms (warmup %d)%n",
+        count, ipc ? "aeron:ipc" : "localhost:" + basePort, intervalMs, warmup);
 
     final HeartbeatRoundTrip roundTrip = new HeartbeatRoundTrip();
     if (ipc) {
@@ -52,7 +53,7 @@ public final class GatewayMain {
                   .egressListener(roundTrip)
                   .ingressChannel("aeron:ipc")
                   .egressChannel("aeron:ipc"))) {
-        roundTrip.run(cluster, new SystemClock(), count, intervalMs, System.out);
+        roundTrip.run(cluster, new SystemClock(), count, warmup, intervalMs, System.out);
       }
     } else {
       final MediaDriver.Context driverContext =
@@ -76,7 +77,7 @@ public final class GatewayMain {
                       .ingressChannel("aeron:udp?term-length=64k")
                       .ingressEndpoints("0=localhost:" + basePort)
                       .egressChannel("aeron:udp?endpoint=localhost:0"))) {
-        roundTrip.run(cluster, new SystemClock(), count, intervalMs, System.out);
+        roundTrip.run(cluster, new SystemClock(), count, warmup, intervalMs, System.out);
       }
     }
     System.out.println("done.");
