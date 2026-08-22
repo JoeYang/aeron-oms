@@ -1,14 +1,39 @@
-load("@rules_java//java:defs.bzl", "java_binary")
+load("@rules_java//java:defs.bzl", "java_binary", "java_library")
+load("//tools:junit5.bzl", "java_junit5_test")
 
 # AeronCluster client + protocol adapters.
 #
 # Deliberately cannot depend on //cluster-service: that target's visibility excludes this
 # package, so adding the dependency fails the build rather than producing a warning.
+java_library(
+    name = "gateway-lib",
+    srcs = glob(["src/main/java/**/*.java"]),
+    deps = [
+        "//core",
+        "//sbe-java",
+        "@maven//:io_aeron_aeron_client",
+        "@maven//:io_aeron_aeron_cluster",
+        "@maven//:io_aeron_aeron_driver",
+        "@maven//:org_agrona_agrona",
+    ],
+)
+
 java_binary(
     name = "gateway",
-    srcs = glob(["src/main/java/**/*.java"]),
     jvm_flags = ["--enable-native-access=ALL-UNNAMED"],
     main_class = "io.joeyang.oms.gateway.GatewayMain",
     visibility = ["//visibility:public"],
-    deps = ["//core"],
+    runtime_deps = [":gateway-lib"],
+)
+
+java_junit5_test(
+    name = "gateway_test",
+    srcs = glob(["src/test/java/**/*.java"]),
+    test_package = "io.joeyang.oms.gateway",
+    deps = [
+        ":gateway-lib",
+        "//core",
+        "//sbe-java",
+        "@maven//:org_agrona_agrona",
+    ],
 )

@@ -2,15 +2,18 @@
 
 ## ADDED Requirements
 
-### Requirement: A client completes a measured round trip
+### Requirement: A client completes measured round trips
 
-The gateway SHALL connect to the cluster, offer one Heartbeat, receive the sequenced echo,
-and report both the sequenced timestamp and the measured round-trip time.
+The gateway SHALL connect to the cluster and send a configurable number of Heartbeats at a
+configurable interval (default: 10, one per second). For each it SHALL print the sequenced
+timestamp and the measured round-trip time, then exit cleanly — a visible stream of messages
+through the log, one line per message.
 
-#### Scenario: One Heartbeat, one echo
+#### Scenario: One line per Heartbeat
 
 - **WHEN** the gateway runs against a live node
-- **THEN** it prints the echo's sequenced timestamp and a round-trip time, then exits cleanly
+- **THEN** it prints one line per Heartbeat carrying the sequenced timestamp and round-trip
+  time, and exits cleanly after the configured count
 
 ### Requirement: The gateway takes time from the Clock port
 
