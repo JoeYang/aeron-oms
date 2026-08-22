@@ -31,6 +31,9 @@ java_junit5_test(
     name = "cluster_node_test",
     size = "large",
     srcs = glob(["src/test/java/**/*.java"]),
+    # The shutdown regression test runs the real binary and signals it — only a process
+    # can prove the process exits.
+    data = [":cluster-node"],
     test_package = "io.joeyang.oms.cluster.node",
     deps = [
         ":node-lib",

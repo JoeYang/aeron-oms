@@ -45,12 +45,17 @@ public final class ClusterNodeMain {
     final boolean lowLatency = Boolean.getBoolean("oms.lowlatency");
     final boolean ipc = Boolean.getBoolean("oms.ipc");
 
-    final ShutdownSignalBarrier barrier = new ShutdownSignalBarrier();
     boolean failed = false;
-    try (SingleNodeCluster node =
-        SingleNodeCluster.launch(
-            new SingleNodeCluster.Config(
-                base, clean, basePort, new OmsClusteredService(), lowLatency, ipc))) {
+    // The barrier replaces the SIGINT/SIGTERM handlers and runs a non-daemon thread; it
+    // MUST be closed before main returns or the JVM can never exit — every component shuts
+    // down cleanly and the process still hangs, warning every ten seconds. Closed by
+    // try-with-resources on every path, including a failed launch; reverse order closes
+    // the node first, then releases the signal handler.
+    try (ShutdownSignalBarrier barrier = new ShutdownSignalBarrier();
+        SingleNodeCluster node =
+            SingleNodeCluster.launch(
+                new SingleNodeCluster.Config(
+                    base, clean, basePort, new OmsClusteredService(), lowLatency, ipc))) {
       node.failure().whenComplete((error, ignored) -> barrier.signal());
 
       System.out.println("cluster-node up: single member, quorum of one");
