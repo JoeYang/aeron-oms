@@ -1,5 +1,6 @@
 package io.joeyang.oms.cluster.node;
 
+import io.aeron.cluster.service.ClusteredService;
 import io.joeyang.oms.cluster.service.OmsClusteredService;
 import java.io.File;
 import org.agrona.concurrent.ShutdownSignalBarrier;
@@ -16,6 +17,8 @@ import org.agrona.concurrent.ShutdownSignalBarrier;
  *       {@code bazel run} was invoked from)
  *   <li>{@code oms.cluster.clean} — wipe the journal on start; an explicit dev reset
  *   <li>{@code oms.cluster.port} — first of five consecutive localhost ports (default 9002)
+ *   <li>{@code oms.replay.report} — print one line with the count and duration of the
+ *       restart-recovery replay once the node reaches leader; observational only
  * </ul>
  */
 public final class ClusterNodeMain {
@@ -45,6 +48,11 @@ public final class ClusterNodeMain {
     final boolean lowLatency = Boolean.getBoolean("oms.lowlatency");
     final boolean ipc = Boolean.getBoolean("oms.ipc");
 
+    final ClusteredService service =
+        Boolean.getBoolean("oms.replay.report")
+            ? new ReplayReportingService(new OmsClusteredService(), System.out)
+            : new OmsClusteredService();
+
     boolean failed = false;
     // The barrier replaces the SIGINT/SIGTERM handlers and runs a non-daemon thread; it
     // MUST be closed before main returns or the JVM can never exit — every component shuts
@@ -54,8 +62,7 @@ public final class ClusterNodeMain {
     try (ShutdownSignalBarrier barrier = new ShutdownSignalBarrier();
         SingleNodeCluster node =
             SingleNodeCluster.launch(
-                new SingleNodeCluster.Config(
-                    base, clean, basePort, new OmsClusteredService(), lowLatency, ipc))) {
+                new SingleNodeCluster.Config(base, clean, basePort, service, lowLatency, ipc))) {
       node.failure().whenComplete((error, ignored) -> barrier.signal());
 
       System.out.println("cluster-node up: single member, quorum of one");
