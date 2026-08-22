@@ -40,4 +40,8 @@ case " ${PROCESSES} " in
     ;;
 esac
 
-exec bazel run "//${process}:${process}" -- "$@"
+# Build under the Bazel lock, then exec the wrapper directly so the lock is released.
+# A plain `bazel run` holds the workspace lock for the process's whole lifetime, which
+# makes the two-terminal demo (node + gateway) deadlock on "Another command is running".
+bazel build "//${process}:${process}"
+exec "bazel-bin/${process}/${process}" "$@"
