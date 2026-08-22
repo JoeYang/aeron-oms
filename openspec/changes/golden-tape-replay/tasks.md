@@ -2,7 +2,7 @@
 
 ## 1. Spec (PR a)
 
-- [ ] 1.1 Proposal, design, specs, tasks written; `openspec validate golden-tape-replay`
+- [x] 1.1 Proposal, design, specs, tasks written; `openspec validate golden-tape-replay`
       passes; spec PR opened.
 
 ## 2. Record the tape (PR b)
