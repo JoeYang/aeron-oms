@@ -1,15 +1,43 @@
-load("@rules_java//java:defs.bzl", "java_binary")
+load("@rules_java//java:defs.bzl", "java_binary", "java_library")
+load("//tools:junit5.bzl", "java_junit5_test")
 
 # Hosts ConsensusModule + ClusteredServiceContainer. The only package permitted to depend
 # on //cluster-service.
-java_binary(
-    name = "cluster-node",
+java_library(
+    name = "node-lib",
     srcs = glob(["src/main/java/**/*.java"]),
-    jvm_flags = ["--enable-native-access=ALL-UNNAMED"],
-    main_class = "io.joeyang.oms.cluster.node.ClusterNodeMain",
-    visibility = ["//visibility:public"],
     deps = [
         "//cluster-service",
         "//core",
+        "@maven//:io_aeron_aeron_archive",
+        "@maven//:io_aeron_aeron_client",
+        "@maven//:io_aeron_aeron_cluster",
+        "@maven//:io_aeron_aeron_driver",
+        "@maven//:org_agrona_agrona",
+    ],
+)
+
+java_binary(
+    name = "cluster-node",
+    jvm_flags = ["--enable-native-access=ALL-UNNAMED"],
+    main_class = "io.joeyang.oms.cluster.node.ClusterNodeMain",
+    visibility = ["//visibility:public"],
+    runtime_deps = [":node-lib"],
+)
+
+# Integration tests launch a real single-member cluster per test: real election, journal,
+# commit and replay. size = "large" buys the timeout that lifecycle needs.
+java_junit5_test(
+    name = "cluster_node_test",
+    size = "large",
+    srcs = glob(["src/test/java/**/*.java"]),
+    test_package = "io.joeyang.oms.cluster.node",
+    deps = [
+        ":node-lib",
+        "//cluster-service",
+        "//sbe-java",
+        "@maven//:io_aeron_aeron_client",
+        "@maven//:io_aeron_aeron_cluster",
+        "@maven//:org_agrona_agrona",
     ],
 )
