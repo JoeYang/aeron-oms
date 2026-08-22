@@ -36,9 +36,16 @@ public final class SingleNodeCluster implements AutoCloseable {
    * @param service the state machine to host
    * @param lowLatency dedicated threading and busy-spin idle strategies on the message path; buys
    *     latency with cores — an explicit choice, never the default
+   * @param ipcIngress accept ingress over {@code aeron:ipc} from clients attached to this node's
+   *     media driver, instead of UDP
    */
   public record Config(
-      File baseDir, boolean clean, int basePort, ClusteredService service, boolean lowLatency) {}
+      File baseDir,
+      boolean clean,
+      int basePort,
+      ClusteredService service,
+      boolean lowLatency,
+      boolean ipcIngress) {}
 
   private final ClusteredMediaDriver driver;
   private final ClusteredServiceContainer container;
@@ -97,7 +104,7 @@ public final class SingleNodeCluster implements AutoCloseable {
             .clusterMemberId(0)
             .clusterMembers(members)
             .clusterClock(new NanosecondClusterClock())
-            .ingressChannel("aeron:udp?term-length=64k")
+            .ingressChannel(config.ipcIngress() ? "aeron:ipc" : "aeron:udp?term-length=64k")
             .replicationChannel("aeron:udp?endpoint=localhost:0")
             .deleteDirOnStart(config.clean());
     final ClusteredServiceContainer.Context containerContext =

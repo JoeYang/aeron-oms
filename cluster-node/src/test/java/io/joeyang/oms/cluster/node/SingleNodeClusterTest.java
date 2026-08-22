@@ -43,30 +43,49 @@ class SingleNodeClusterTest {
   private static SingleNodeCluster launch(
       final File base, final boolean clean, final int port, final ClusteredService service) {
     return SingleNodeCluster.launch(
-        new SingleNodeCluster.Config(base, clean, port, service, false));
+        new SingleNodeCluster.Config(base, clean, port, service, false, false));
   }
 
   @Test
   void lowLatencyProfileStillRoundTrips() {
     try (SingleNodeCluster node =
         SingleNodeCluster.launch(
-            new SingleNodeCluster.Config(tempDir, true, 21142, new OmsClusteredService(), true))) {
+            new SingleNodeCluster.Config(
+                tempDir, true, 21142, new OmsClusteredService(), true, false))) {
       roundTrip(node, 21142);
     }
   }
 
+  @Test
+  void ipcClientRoundTrips() {
+    try (SingleNodeCluster node =
+        SingleNodeCluster.launch(
+            new SingleNodeCluster.Config(
+                tempDir, true, 21152, new OmsClusteredService(), false, true))) {
+      roundTrip(
+          new AeronCluster.Context()
+              .aeronDirectoryName(node.aeronDirectoryName())
+              .ingressChannel("aeron:ipc")
+              .egressChannel("aeron:ipc"));
+    }
+  }
+
   private static long roundTrip(final SingleNodeCluster node, final int basePort) {
+    return roundTrip(
+        new AeronCluster.Context()
+            .aeronDirectoryName(node.aeronDirectoryName())
+            .ingressChannel("aeron:udp?term-length=64k")
+            .ingressEndpoints("0=localhost:" + basePort)
+            .egressChannel("aeron:udp?endpoint=localhost:0"));
+  }
+
+  private static long roundTrip(final AeronCluster.Context clientContext) {
     final AtomicLong echoed = new AtomicLong(Long.MIN_VALUE);
     try (AeronCluster client =
         AeronCluster.connect(
-            new AeronCluster.Context()
-                .aeronDirectoryName(node.aeronDirectoryName())
-                .ingressChannel("aeron:udp?term-length=64k")
-                .ingressEndpoints("0=localhost:" + basePort)
-                .egressChannel("aeron:udp?endpoint=localhost:0")
-                .egressListener(
-                    (sessionId, timestamp, buffer, offset, length, header) ->
-                        echoed.set(decodeTimestamp(buffer, offset))))) {
+            clientContext.egressListener(
+                (sessionId, timestamp, buffer, offset, length, header) ->
+                    echoed.set(decodeTimestamp(buffer, offset))))) {
 
       final UnsafeBuffer buffer = new UnsafeBuffer(new byte[64]);
       final int length = encodeHeartbeat(buffer);
