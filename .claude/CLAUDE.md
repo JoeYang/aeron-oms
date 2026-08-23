@@ -55,6 +55,7 @@ adopting stacked PRs — see @.claude/rules/stacked-prs.md.
 | Format | `scripts/format.sh` (google-java-format, rewrites files) |
 | Lint | `scripts/lint.sh` (format check + Checkstyle, read-only) |
 | SBE — change a message | `/sbe-gen` (regenerate, inspect, diff wire identity, test) |
+| Performance test | `/perf-test` (asks the focus: latency, throughput, GC, or JIT) |
 | Spec — start initiative | `openspec new change <name>` |
 | Spec — validate | `openspec validate <name>` |
 | Spec — archive when merged | `openspec archive <name>` |
