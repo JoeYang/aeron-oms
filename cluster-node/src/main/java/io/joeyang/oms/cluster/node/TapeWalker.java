@@ -18,10 +18,9 @@ import org.agrona.DirectBuffer;
 import org.agrona.concurrent.UnsafeBuffer;
 
 /**
- * The one decode path for a tape's recorded cluster log: walks the recording segments' data
- * frames, unwraps the cluster session-message framing, and hands each entry to a handler. Both the
- * replayer and the viewer consume tapes through this walk, so the golden tape guards a single
- * decoder.
+ * The one decode path for a tape's recorded cluster log: walks the recording segments' data frames,
+ * unwraps the cluster session-message framing, and hands each entry to a handler. Both the replayer
+ * and the viewer consume tapes through this walk, so the golden tape guards a single decoder.
  *
  * <p>Deliberately strict: a truncated or fragmented frame throws rather than yielding a partial
  * walk, because a tape that half-decodes silently would defeat its purpose as a fixture.

@@ -26,6 +26,15 @@ java_binary(
     runtime_deps = [":node-lib"],
 )
 
+# Read-only tape viewer: one line per decoded log entry, human or JSONL.
+java_binary(
+    name = "tape-cat",
+    jvm_flags = ["--enable-native-access=ALL-UNNAMED"],
+    main_class = "io.joeyang.oms.cluster.node.TapeCatMain",
+    visibility = ["//visibility:public"],
+    runtime_deps = [":node-lib"],
+)
+
 # App-mode golden-tape replayer. Lives here because this is the one package
 # permitted to depend on //cluster-service.
 java_binary(
