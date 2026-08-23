@@ -6,11 +6,13 @@ downstream services consume that stream to rebuild state deterministically.
 
 ## Status
 
-Skeleton. The Bazel build works and `bazel test //...` is green. Aeron Cluster 1.52.2 is
-declared and proven to run — a test starts an embedded `MediaDriver` and connects a client —
-but no package uses Aeron beyond that test, and there is no OMS behaviour yet. The packages
-hold placeholders that prove the toolchain, not domain types. Keep the command table below
-honest: a listed command that does not run is worse than no table.
+MVP round trip. A single-member Aeron Cluster (1.52.2) hosts `OmsClusteredService` — an
+echo state machine stamping each `Heartbeat` with sequenced cluster time — with the
+gateway streaming heartbeats through it and the Archive journaling every input. `journal/`
+holds an immutable golden tape; the suite replays it against the bare service and through
+cluster recovery, asserting identical outputs. No order-management behaviour exists beyond
+the heartbeat path. Keep the command table below honest: a listed command that does not
+run is worse than no table.
 
 Agrona reads `jdk.internal.misc.Unsafe`, so `.bazelrc` carries
 `--add-exports java.base/jdk.internal.misc=ALL-UNNAMED`. It is mandatory, not tuning: without
@@ -52,6 +54,8 @@ adopting stacked PRs — see @.claude/rules/stacked-prs.md.
 | Test | `scripts/test.sh` (wraps `bazel test //...`) |
 | Test (single) | `scripts/test.sh //core:core_test` |
 | Run a process | `scripts/run.sh cluster-node \| gateway \| driver` |
+| Record a golden tape | `scripts/record-tape.sh <name> [count]` (immutable; new scenario = new name) |
+| Replay a tape | `scripts/replay-app.sh \| replay-cluster.sh \| replay-bench.sh <name>` |
 | Format | `scripts/format.sh` (google-java-format, rewrites files) |
 | Lint | `scripts/lint.sh` (format check + Checkstyle, read-only) |
 | SBE — change a message | `/sbe-gen` (regenerate, inspect, diff wire identity, test) |

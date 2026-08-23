@@ -32,6 +32,10 @@ scripts/test.sh                  # bazel test //...
 scripts/run.sh cluster-node      # gateway | driver
 scripts/format.sh                # google-java-format, rewrites files
 scripts/lint.sh                  # format check + Checkstyle, read-only
+scripts/record-tape.sh <name>    # freeze a golden tape under journal/
+scripts/replay-app.sh <name>     # replay a tape against the bare state machine
+scripts/replay-cluster.sh <name> # replay a tape through cluster recovery
+scripts/replay-bench.sh <name>   # benchmark both replay modes
 ```
 
 The scripts run from any directory and pass extra arguments through to Bazel, so
@@ -39,12 +43,15 @@ The scripts run from any directory and pass extra arguments through to Bazel, so
 
 ## Status
 
-Skeleton. The build, the JUnit 5 test wiring, and the package boundaries work end to end.
+MVP round trip. A single-member cluster (Aeron Cluster 1.52.2) hosts the state machine —
+currently an echo service that stamps each `Heartbeat` with the sequenced cluster time —
+and the gateway streams heartbeats through it. Every input is journaled by the Archive
+before it is applied.
 
-Aeron Cluster 1.52.2 is declared and proven to run: a test starts an embedded `MediaDriver`
-and connects a client, so the suite fails if the dependency resolves but cannot execute. No
-package uses Aeron yet beyond that test, and there is no OMS behaviour — each package still
-holds a placeholder.
+Replay is proven, not assumed: `journal/` holds an immutable golden tape (a recorded
+journal plus its expected outputs), and the suite replays it both against the bare state
+machine and through cluster restart-recovery, asserting identical outputs each time. No
+order-management behaviour exists yet beyond the heartbeat path.
 
 Development follows a spec-first flow; see `openspec/` and `.claude/rules/process.md`.
 Deferred work is tracked in `todo/`, and unbuilt options in `ideas/`.

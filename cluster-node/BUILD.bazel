@@ -9,6 +9,7 @@ java_library(
     deps = [
         "//cluster-service",
         "//core",
+        "//sbe-java",
         "@maven//:io_aeron_aeron_archive",
         "@maven//:io_aeron_aeron_client",
         "@maven//:io_aeron_aeron_cluster",
@@ -25,6 +26,16 @@ java_binary(
     runtime_deps = [":node-lib"],
 )
 
+# App-mode golden-tape replayer. Lives here because this is the one package
+# permitted to depend on //cluster-service.
+java_binary(
+    name = "tape-replay",
+    jvm_flags = ["--enable-native-access=ALL-UNNAMED"],
+    main_class = "io.joeyang.oms.cluster.node.TapeReplayMain",
+    visibility = ["//visibility:public"],
+    runtime_deps = [":node-lib"],
+)
+
 # Integration tests launch a real single-member cluster per test: real election, journal,
 # commit and replay. size = "large" buys the timeout that lifecycle needs.
 java_junit5_test(
@@ -32,8 +43,11 @@ java_junit5_test(
     size = "large",
     srcs = glob(["src/test/java/**/*.java"]),
     # The shutdown regression test runs the real binary and signals it — only a process
-    # can prove the process exits.
-    data = [":cluster-node"],
+    # can prove the process exits. Replay tests read the committed golden tape.
+    data = [
+        ":cluster-node",
+        "//journal:heartbeats-v1",
+    ],
     test_package = "io.joeyang.oms.cluster.node",
     deps = [
         ":node-lib",

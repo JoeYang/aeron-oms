@@ -43,6 +43,6 @@ failing test first. Schema work is its own commit, before any code that uses it.
 
 ## 5. Close out
 
-- [ ] 5.1 All PRs merged bottom-up; `bazel test //...` green on `main`.
-- [ ] 5.2 `openspec archive mvp-cluster-roundtrip`; delete the resolved risk rows from the
+- [x] 5.1 All PRs merged bottom-up; `bazel test //...` green on `main`.
+- [x] 5.2 `openspec archive mvp-cluster-roundtrip`; delete the resolved risk rows from the
       lavish artifact or retire the page.

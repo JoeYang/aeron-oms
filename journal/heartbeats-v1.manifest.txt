@@ -1,0 +1,6 @@
+name: heartbeats-v1
+messages: 3000
+schema-version: 1
+commit: 834dc2f20b43f9e1dfed9a66d1d88e318e3abe2b
+recorded: 2026-08-23T06:10:10+10:00
+machine: Linux 6.17.0-1028-oem / Intel(R) Core(TM) Ultra 7 255HX

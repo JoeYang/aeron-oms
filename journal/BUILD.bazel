@@ -1,0 +1,11 @@
+# Golden tape fixtures: immutable recorded journals plus their manifests and
+# expected outputs. See journal/README.md — tapes are never regenerated.
+filegroup(
+    name = "heartbeats-v1",
+    srcs = [
+        "heartbeats-v1.golden-outputs.txt",
+        "heartbeats-v1.manifest.txt",
+        "heartbeats-v1.tar.gz",
+    ],
+    visibility = ["//visibility:public"],
+)
