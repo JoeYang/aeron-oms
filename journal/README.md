@@ -18,3 +18,8 @@ Replay a tape with `scripts/replay-app.sh` (bare state machine) or
 `scripts/replay-cluster.sh` (restart-recovery), or benchmark both with
 `scripts/replay-bench.sh`. A tape recorded at schema version N must replay correctly
 forever — these fixtures are the compatibility regression for the journal format.
+
+Every tape here is verified on every PR: `scripts/check-journals.sh` discovers all
+`*.tar.gz` files and replays each against its golden outputs as part of the CI gate.
+A mismatch means the code broke replay compatibility — investigate it; never update
+the golden files or re-record a tape to make the gate pass.

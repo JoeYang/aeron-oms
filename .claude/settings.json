@@ -25,7 +25,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "CMD=$(echo \"$CLAUDE_TOOL_INPUT\" | jq -r '.command // empty'); case \"$CMD\" in *\"gh pr create\"*) if [ -f MODULE.bazel ]; then if ! bazel test //... >/dev/null 2>&1; then echo 'WARNING: bazel test //... is not passing. The PR gate in .claude/rules/process.md requires a green suite before opening a PR. Proceeding is a deliberate act - say why in the PR description.' >&2; fi; fi;; esac; exit 0",
+            "command": "CMD=$(echo \"$CLAUDE_TOOL_INPUT\" | jq -r '.command // empty'); case \"$CMD\" in *\"gh pr create\"*) if [ -f MODULE.bazel ]; then if ! bazel test //... >/dev/null 2>&1; then echo 'WARNING: bazel test //... is not passing. The PR gate in .claude/rules/process.md requires a green suite before opening a PR. Proceeding is a deliberate act - say why in the PR description.' >&2; fi; if [ -x scripts/check-journals.sh ] && ! scripts/check-journals.sh >/dev/null 2>&1; then echo 'WARNING: a golden tape no longer replays to its recorded outputs (scripts/check-journals.sh). This is a journal-compatibility regression - investigate it; never update golden files to make it pass.' >&2; fi; fi;; esac; exit 0",
             "timeout": 300000
           }
         ]

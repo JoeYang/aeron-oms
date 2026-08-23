@@ -56,6 +56,7 @@ adopting stacked PRs — see @.claude/rules/stacked-prs.md.
 | Run a process | `scripts/run.sh cluster-node \| gateway \| driver` |
 | Record a golden tape | `scripts/record-tape.sh <name> [count]` (immutable; new scenario = new name) |
 | Replay a tape | `scripts/replay-app.sh \| replay-cluster.sh \| replay-bench.sh <name>` |
+| Verify all tapes | `scripts/check-journals.sh` (every tape; runs in the CI gate on each PR) |
 | Format | `scripts/format.sh` (google-java-format, rewrites files) |
 | Lint | `scripts/lint.sh` (format check + Checkstyle, read-only) |
 | SBE — change a message | `/sbe-gen` (regenerate, inspect, diff wire identity, test) |
