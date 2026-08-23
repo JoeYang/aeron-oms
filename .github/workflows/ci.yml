@@ -54,6 +54,13 @@ jobs:
       - name: Test
         run: scripts/test.sh //... --config=ci --nocache_test_results
 
+      # Every golden tape must replay byte-for-byte to its recorded outputs. The check
+      # discovers journal/*.tar.gz itself, so new tapes are gated automatically. A
+      # mismatch is a journal-compatibility regression to investigate — never something
+      # to fix by updating the golden files.
+      - name: Journal replay
+        run: BAZEL_ARGS=--config=ci scripts/check-journals.sh
+
       # The read-only gate: format check plus Checkstyle. Never scripts/format.sh, which
       # rewrites files -- in CI that would mutate the runner and discard the result.
       - name: Lint
