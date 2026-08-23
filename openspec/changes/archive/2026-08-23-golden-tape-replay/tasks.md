@@ -36,5 +36,5 @@
 
 - [x] 5.1 `scripts/replay-bench.sh <tape>`: run both modes, print per-mode
       messages / wall time / msgs/sec plus machine metadata; paste results into PR d.
-- [ ] 5.2 All PRs merged bottom-up, `bazel test //...` green on `main`,
+- [x] 5.2 All PRs merged bottom-up, `bazel test //...` green on `main`,
       `openspec archive golden-tape-replay`.
