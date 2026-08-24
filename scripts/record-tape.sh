@@ -31,7 +31,13 @@ bazel-bin/cluster-node/cluster-node \
   "--jvm_flag=-Doms.cluster.port=$PORT" > "$WORK/node.log" 2>&1 &
 NODE_PID=$!
 stop_node() {
+  # Kill children first: the bazel launcher may run java as a child rather
+  # than exec it, and a surviving JVM keeps the ports and the journal open.
+  pkill -TERM -P "$NODE_PID" 2>/dev/null || true
   kill "$NODE_PID" 2>/dev/null || true
+  for _ in 1 2 3 4 5; do kill -0 "$NODE_PID" 2>/dev/null || break; sleep 1; done
+  pkill -KILL -P "$NODE_PID" 2>/dev/null || true
+  kill -9 "$NODE_PID" 2>/dev/null || true
   wait "$NODE_PID" 2>/dev/null || true
 }
 trap stop_node EXIT
