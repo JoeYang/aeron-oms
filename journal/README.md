@@ -16,8 +16,11 @@ new scenario is a new name. The recording script enforces this.
 
 Replay a tape with `scripts/replay-app.sh` (bare state machine) or
 `scripts/replay-cluster.sh` (restart-recovery), or benchmark both with
-`scripts/replay-bench.sh`. A tape recorded at schema version N must replay correctly
-forever — these fixtures are the compatibility regression for the journal format.
+`scripts/replay-bench.sh`. View a tape's decoded entries with
+`scripts/tape-cat.sh <name> [--json]` — read-only; further viewing and authoring
+options are parked in `ideas/journal-tool.md`. A tape recorded at schema version N
+must replay correctly forever — these fixtures are the compatibility regression for
+the journal format.
 
 Every tape here is verified on every PR: `scripts/check-journals.sh` discovers all
 `*.tar.gz` files and replays each against its golden outputs as part of the CI gate.
