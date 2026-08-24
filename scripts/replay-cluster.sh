@@ -7,6 +7,7 @@ set -euo pipefail
 
 NAME=${1:?usage: replay-cluster.sh <name>}
 PORT=${PORT:-22122}   # isolated: distinct from dev (9002), perf (22102), record (22112)
+NODE_FLAGS=${NODE_FLAGS:-}   # e.g. "--jvm_flag=-Doms.replay.warmup=1000000"
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 TAPE="$ROOT/journal/$NAME.tar.gz"
 [ -f "$TAPE" ] || { echo "no such tape: journal/$NAME.tar.gz" >&2; exit 1; }
@@ -18,10 +19,12 @@ tar -xzf "$TAPE" -C "$WORK/data/node-0"
 cd "$ROOT"
 bazel build //cluster-node:cluster-node > "$WORK/build.log" 2>&1
 
+# shellcheck disable=SC2086
 bazel-bin/cluster-node/cluster-node \
   "--jvm_flag=-Doms.data.dir=$WORK/data" \
   "--jvm_flag=-Doms.cluster.port=$PORT" \
-  --jvm_flag=-Doms.replay.report=true > "$WORK/node.log" 2>&1 &
+  --jvm_flag=-Doms.replay.report=true \
+  $NODE_FLAGS > "$WORK/node.log" 2>&1 &
 NODE_PID=$!
 stop_node() {
   # The bazel launcher may run java as a child rather than exec it: kill the

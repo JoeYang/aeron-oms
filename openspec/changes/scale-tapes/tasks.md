@@ -6,10 +6,10 @@
 
 ## 2. Scripts
 
-- [ ] 2.1 `record-tape.sh`: NODE_FLAGS/GW_FLAGS passthrough, gateway gets the data
+- [x] 2.1 `record-tape.sh`: NODE_FLAGS/GW_FLAGS passthrough, gateway gets the data
       dir, SKIP_GOLDENS=1, longer recovery-verify wait for scale tapes; verified by
       a small tuned goldenless recording.
-- [ ] 2.2 `replay-cluster.sh`: NODE_FLAGS passthrough.
+- [x] 2.2 `replay-cluster.sh`: NODE_FLAGS passthrough.
 
 ## 3. Warmup (TDD)
 

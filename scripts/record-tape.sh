@@ -6,11 +6,20 @@
 #
 # A tape is immutable — an existing name is refused. Record-time timestamps are wall
 # clock, so a tape can never be regenerated identically; a new scenario is a new name.
+#
+# Env: NODE_FLAGS / GW_FLAGS — extra "--jvm_flag=-D..." strings for scale recordings
+# (e.g. the tuned profile; a 100M-message recording at the default profile takes ~12
+# hours, tuned ~15-20 minutes). SKIP_GOLDENS=1 omits the golden-outputs file for
+# local scale tapes — at 100M messages it is a 2 GB file nothing reads; the count is
+# still verified and the omission is recorded in the manifest.
 set -euo pipefail
 
 NAME=${1:?usage: record-tape.sh <name> [count]}
 COUNT=${2:-3000}
 PORT=${PORT:-22112}   # isolated: distinct from dev (9002) and perf (22102)
+NODE_FLAGS=${NODE_FLAGS:-}
+GW_FLAGS=${GW_FLAGS:-}
+SKIP_GOLDENS=${SKIP_GOLDENS:-}
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 TAPE="$ROOT/journal/$NAME.tar.gz"
@@ -26,9 +35,11 @@ DATA="$WORK/data"
 cd "$ROOT"
 bazel build //cluster-node:cluster-node //gateway:gateway > "$WORK/build.log" 2>&1
 
+# shellcheck disable=SC2086
 bazel-bin/cluster-node/cluster-node \
   "--jvm_flag=-Doms.data.dir=$DATA" --jvm_flag=-Doms.cluster.clean=true \
-  "--jvm_flag=-Doms.cluster.port=$PORT" > "$WORK/node.log" 2>&1 &
+  "--jvm_flag=-Doms.cluster.port=$PORT" \
+  $NODE_FLAGS > "$WORK/node.log" 2>&1 &
 NODE_PID=$!
 stop_node() {
   # Kill children first: the bazel launcher may run java as a child rather
@@ -49,22 +60,31 @@ done
 grep -q "cluster-node up" "$WORK/node.log" \
   || { echo "FAIL: node did not start"; tail -5 "$WORK/node.log"; exit 1; }
 
+# The data dir lets IPC-mode gateways find the node's media driver; UDP mode ignores it.
+# shellcheck disable=SC2086
 bazel-bin/gateway/gateway \
   "--jvm_flag=-Doms.gateway.count=$COUNT" --jvm_flag=-Doms.gateway.interval.ms=0 \
-  "--jvm_flag=-Doms.cluster.port=$PORT" > "$WORK/gateway.log" 2>&1
+  "--jvm_flag=-Doms.cluster.port=$PORT" "--jvm_flag=-Doms.data.dir=$DATA" \
+  $GW_FLAGS > "$WORK/gateway.log" 2>&1
 
 stop_node
 trap - EXIT
 
 # Golden outputs: the ordered sequenced timestamps the service echoed at record time.
 # Replay is deterministic from the log, so these are the expected outputs forever.
-grep -oP 'sequenced=\K\d+' "$WORK/gateway.log" > "$ROOT/journal/$NAME.golden-outputs.txt"
-GOT=$(wc -l < "$ROOT/journal/$NAME.golden-outputs.txt")
+# (Derivable later from the tape itself via tape-cat if skipped here.)
+if [ -n "$SKIP_GOLDENS" ]; then
+  GOT=$(grep -c 'sequenced=' "$WORK/gateway.log")
+else
+  grep -oP 'sequenced=\K\d+' "$WORK/gateway.log" > "$ROOT/journal/$NAME.golden-outputs.txt"
+  GOT=$(wc -l < "$ROOT/journal/$NAME.golden-outputs.txt")
+fi
 [ "$GOT" -eq "$COUNT" ] || { echo "FAIL: captured $GOT/$COUNT outputs"; exit 1; }
 
 {
   echo "name: $NAME"
   echo "messages: $COUNT"
+  echo "golden-outputs: $([ -n "$SKIP_GOLDENS" ] && echo 'skipped (SKIP_GOLDENS)' || echo "$NAME.golden-outputs.txt")"
   echo "schema-version: $(grep -oP 'version="\K[0-9]+' "$ROOT/sbe/message-schema.xml" | head -1)"
   echo "commit: $(git -C "$ROOT" rev-parse HEAD)"
   echo "recorded: $(date -Is)"
@@ -85,7 +105,8 @@ bazel-bin/cluster-node/cluster-node \
   "--jvm_flag=-Doms.cluster.port=$PORT" > "$CHECK/node.log" 2>&1 &
 NODE_PID=$!
 trap stop_node EXIT
-for _ in $(seq 1 150); do
+# Recovery replays the whole journal before "up"; scale tapes need the longer wait.
+for _ in $(seq 1 600); do
   grep -q "cluster-node up" "$CHECK/node.log" && break
   sleep 0.2
 done
