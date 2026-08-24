@@ -23,3 +23,9 @@ Every tape here is verified on every PR: `scripts/check-journals.sh` discovers a
 `*.tar.gz` files and replays each against its golden outputs as part of the CI gate.
 A mismatch means the code broke replay compatibility — investigate it; never update
 the golden files or re-record a tape to make the gate pass.
+
+**Local tapes.** A name starting `local-` (e.g. `local-heartbeats-1m`) is git-ignored
+and skipped by the gate — machine-only, for experiments and scale runs. Record them
+with the same `scripts/record-tape.sh`; verify on demand with `scripts/replay-app.sh`.
+The immutability rule still applies while one exists; deleting and re-recording a
+local tape is fine, because nothing may ever depend on it.

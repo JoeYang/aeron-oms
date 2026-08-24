@@ -29,6 +29,13 @@ bazel build //cluster-node:tape-replay ${BAZEL_ARGS:-} > "$BUILD_LOG" 2>&1 \
 STATUS=0
 for tape in "${TAPES[@]}"; do
   name=$(basename "$tape" .tar.gz)
+  case "$name" in
+    local-*)
+      # Machine-only experiment tapes (git-ignored); verify on demand with replay-app.sh.
+      echo "skip $name: local tape, not part of the gate"
+      continue
+      ;;
+  esac
   manifest="$DIR/$name.manifest.txt"
   golden="$DIR/$name.golden-outputs.txt"
   if [ ! -f "$manifest" ] || [ ! -f "$golden" ]; then

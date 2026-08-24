@@ -14,3 +14,7 @@
 
 # Cluster runtime state and journals from scripts/run.sh (never committed)
 /data/
+
+# Local tapes: recorded for experiments (scale runs, scratch scenarios), machine-only.
+# The local- prefix keeps them out of git and out of the CI journal gate.
+/journal/local-*
