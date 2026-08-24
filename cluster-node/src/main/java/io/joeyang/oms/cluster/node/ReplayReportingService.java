@@ -21,14 +21,22 @@ final class ReplayReportingService implements ClusteredService {
 
   private final ClusteredService delegate;
   private final PrintStream out;
+  private final long warmup;
+  private long skipped;
   private long count;
   private long firstNanos;
   private long lastNanos;
   private boolean reported;
 
   ReplayReportingService(final ClusteredService delegate, final PrintStream out) {
+    this(delegate, out, 0);
+  }
+
+  ReplayReportingService(
+      final ClusteredService delegate, final PrintStream out, final long warmup) {
     this.delegate = delegate;
     this.out = out;
+    this.warmup = warmup;
   }
 
   @Override
@@ -56,11 +64,17 @@ final class ReplayReportingService implements ClusteredService {
       final int length,
       final Header header) {
     if (!reported) {
-      if (count == 0) {
-        firstNanos = System.nanoTime();
+      // The first `warmup` applies heat the JVM inside this same run and stay
+      // outside the timing window — the perf protocol's discard convention.
+      if (skipped < warmup) {
+        skipped++;
+      } else {
+        if (count == 0) {
+          firstNanos = System.nanoTime();
+        }
+        count++;
+        lastNanos = System.nanoTime();
       }
-      count++;
-      lastNanos = System.nanoTime();
     }
     delegate.onSessionMessage(session, timestamp, buffer, offset, length, header);
   }
@@ -83,10 +97,11 @@ final class ReplayReportingService implements ClusteredService {
       final double seconds = (lastNanos - firstNanos) / 1e9;
       out.printf(
           java.util.Locale.ROOT,
-          "cluster-replay: %d messages in %.3f s = %,.0f msg/s%n",
+          "cluster-replay: %d messages in %.3f s = %,.0f msg/s%s%n",
           count,
           seconds,
-          seconds > 0 ? count / seconds : 0.0);
+          seconds > 0 ? count / seconds : 0.0,
+          warmup > 0 ? " (after " + skipped + " warmup applies)" : "");
     }
   }
 
