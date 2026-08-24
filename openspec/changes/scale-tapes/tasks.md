@@ -20,6 +20,6 @@
 
 ## 4. Measure and close
 
-- [ ] 4.1 Record `local-heartbeats-100m` (tuned, SKIP_GOLDENS); report cluster
+- [x] 4.1 Record `local-heartbeats-100m` (tuned, SKIP_GOLDENS); report cluster
       recovery with warmup=1,000,000 and app replay warmed by the 1M tape.
 - [ ] 4.2 Suite green uncached; PR; after merge `openspec archive scale-tapes`.
