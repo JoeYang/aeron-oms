@@ -24,14 +24,23 @@ bazel-bin/cluster-node/cluster-node \
   --jvm_flag=-Doms.replay.report=true > "$WORK/node.log" 2>&1 &
 NODE_PID=$!
 stop_node() {
+  # The bazel launcher may run java as a child rather than exec it: kill the
+  # children first (while the wrapper is still alive to be their parent), then
+  # the wrapper — or the JVM survives the script and keeps the ports.
+  pkill -TERM -P "$NODE_PID" 2>/dev/null || true
   kill "$NODE_PID" 2>/dev/null || true
+  for _ in 1 2 3 4 5; do kill -0 "$NODE_PID" 2>/dev/null || break; sleep 1; done
+  pkill -KILL -P "$NODE_PID" 2>/dev/null || true
+  kill -9 "$NODE_PID" 2>/dev/null || true
   wait "$NODE_PID" 2>/dev/null || true
 }
 trap stop_node EXIT
 
-for _ in $(seq 1 300); do
-  grep -q "cluster-replay:" "$WORK/node.log" && break
+# Wait for the complete line ("msg/s" is its tail) — matching the prefix races
+# a partially flushed write and prints a truncated report.
+for _ in $(seq 1 600); do
+  grep -q "msg/s" "$WORK/node.log" && break
   sleep 0.1
 done
-grep "cluster-replay:" "$WORK/node.log" \
+grep "cluster-replay: .*msg/s" "$WORK/node.log" \
   || { echo "FAIL: no replay report"; tail -5 "$WORK/node.log"; exit 1; }
