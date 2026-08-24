@@ -15,7 +15,7 @@
 
 - [x] 3.1 Failing unit test: ReplayReportingService with warmup 2 and 5 applies
       reports 3; implement; `-Doms.replay.warmup` wired in ClusterNodeMain.
-- [ ] 3.2 `TapeReplayMain`: `--warmup <archive>` and golden `-` (count-only);
+- [x] 3.2 `TapeReplayMain`: `--warmup <archive>` and golden `-` (count-only);
       verified live against the 1M tape.
 
 ## 4. Measure and close
