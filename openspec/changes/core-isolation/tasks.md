@@ -9,29 +9,29 @@
 
 ## 2. Affinity port (interfaces commit before implementation)
 
-- [ ] 2.1 Failing tests: pin current thread to an online CPU and read the mask back;
+- [x] 2.1 Failing tests: pin current thread to an online CPU and read the mask back;
       nonexistent CPU raises an error naming the CPU
-- [ ] 2.2 Port interface in `//core` (own commit)
-- [ ] 2.3 Linux FFM implementation of `sched_setaffinity`/`sched_getaffinity` (`pid=0`),
+- [x] 2.2 Port interface in `//core` (own commit)
+- [x] 2.3 Linux FFM implementation of `sched_setaffinity`/`sched_getaffinity` (`pid=0`),
       verify-and-fail-fast; `--enable-native-access=ALL-UNNAMED` on the test and the
       replay binary only
 
 ## 3. Pinned replay
 
-- [ ] 3.1 Failing test: `--pin` with a bad CPU fails before replaying; report states the
+- [x] 3.1 Failing test: `--pin` with a bad CPU fails before replaying; report states the
       pinned CPU on success
-- [ ] 3.2 Wire `--pin <cpu>` into `TapeReplayMain` (pin before the warmup tape)
-- [ ] 3.3 Launch layer: replay invocation documented/wrapped with
+- [x] 3.2 Wire `--pin <cpu>` into `TapeReplayMain` (pin before the warmup tape)
+- [x] 3.3 Launch layer: replay invocation documented/wrapped with
       `taskset -c <housekeeping>`
 
 ## 4. Machine layer (user applies; tooling checks)
 
-- [ ] 4.1 `scripts/isolation.sh check` — cmdline (incl. `managed_irq`, `nmi_watchdog=0`),
+- [x] 4.1 `scripts/isolation.sh check` — cmdline (incl. `managed_irq`, `nmi_watchdog=0`),
       unmanaged IRQ affinity, workqueue cpumask, governor vs recorded layout; nonzero on
       drift, names each missing layer; detects `CONFIG_NO_HZ_FULL` presence
-- [ ] 4.2 `scripts/isolation.sh apply` — root; per-boot parts only (IRQ masks, workqueue
+- [x] 4.2 `scripts/isolation.sh apply` — root; per-boot parts only (IRQ masks, workqueue
       cpumask, governor)
-- [ ] 4.3 Document the GRUB line for the confirmed layout
+- [x] 4.3 Document the GRUB line for the confirmed layout
       (`isolcpus=domain,managed_irq,4,6 nohz_full=4,6 rcu_nocbs=4,6 nmi_watchdog=0`),
       and the revert
 
