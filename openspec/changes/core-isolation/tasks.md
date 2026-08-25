@@ -2,9 +2,9 @@
 
 ## 1. p99.99 first (own commit, before any isolation)
 
-- [ ] 1.1 Failing test: `LatencyHistogram` reports p99.99 (extend `LatencyHistogramTest`)
-- [ ] 1.2 Implement p99.99 and add it to the `TapeReplayMain` report line
-- [ ] 1.3 Re-record the baseline: 100M tape, `--warmup` 1M, `--latency`, warm cache, discard
+- [x] 1.1 Failing test: `LatencyHistogram` reports p99.99 (extend `LatencyHistogramTest`)
+- [x] 1.2 Implement p99.99 and add it to the `TapeReplayMain` report line
+- [x] 1.3 Re-record the baseline: 100M tape, `--warmup` 1M, `--latency`, warm cache, discard
       first run, 3 measured runs — powersave, no isolation. Record medians in the PR.
 
 ## 2. Affinity port (interfaces commit before implementation)
