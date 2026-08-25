@@ -81,16 +81,7 @@ public final class TapeReplayMain {
         seconds,
         result.heartbeats() / seconds);
     if (latency != null) {
-      System.out.printf(
-          Locale.ROOT,
-          "apply-latency: n=%d p50=%d p90=%d p99=%d p99.9=%d max=%d ns "
-              + "(timing adds two nanoTime reads per apply)%n",
-          latency.count(),
-          latency.valueAtPercentile(50.0),
-          latency.valueAtPercentile(90.0),
-          latency.valueAtPercentile(99.0),
-          latency.valueAtPercentile(99.9),
-          latency.max());
+      System.out.println(latencyReport(latency));
     }
 
     if (result.heartbeats() != expected
@@ -103,5 +94,19 @@ public final class TapeReplayMain {
         countOnly
             ? "REPLAY OK: count matches the manifest (count-only tape)"
             : "REPLAY OK: count and outputs match the golden files");
+  }
+
+  static String latencyReport(final LatencyHistogram latency) {
+    return String.format(
+        Locale.ROOT,
+        "apply-latency: n=%d p50=%d p90=%d p99=%d p99.9=%d p99.99=%d max=%d ns "
+            + "(timing adds two nanoTime reads per apply)",
+        latency.count(),
+        latency.valueAtPercentile(50.0),
+        latency.valueAtPercentile(90.0),
+        latency.valueAtPercentile(99.0),
+        latency.valueAtPercentile(99.9),
+        latency.valueAtPercentile(99.99),
+        latency.max());
   }
 }
