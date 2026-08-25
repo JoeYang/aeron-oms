@@ -64,6 +64,31 @@ class TapeReplayTest {
   }
 
   @Test
+  void pinFlagParsesTheTargetCpu() {
+    final TapeReplayMain.Options options =
+        TapeReplayMain.parseOptions(new String[] {"a", "m", "-", "--pin", "4", "--latency"});
+
+    assertTrue(options.ok(), "well-formed --pin must parse");
+    assertEquals(4, options.pinCpu());
+    assertTrue(options.withLatency());
+  }
+
+  @Test
+  void absentPinFlagMeansNoPin() {
+    final TapeReplayMain.Options options =
+        TapeReplayMain.parseOptions(new String[] {"a", "m", "-"});
+
+    assertTrue(options.ok());
+    assertEquals(TapeReplayMain.NO_PIN, options.pinCpu());
+  }
+
+  @Test
+  void pinFlagWithoutValueOrWithGarbageIsUsageError() {
+    assertTrue(!TapeReplayMain.parseOptions(new String[] {"a", "m", "-", "--pin"}).ok());
+    assertTrue(!TapeReplayMain.parseOptions(new String[] {"a", "m", "-", "--pin", "four"}).ok());
+  }
+
+  @Test
   void replayAppliesEveryRecordedHeartbeatAndEchoesTheGoldenOutputs() throws Exception {
     final TapeReplay.Result result = TapeReplay.replay(unpackedArchiveDir());
 
