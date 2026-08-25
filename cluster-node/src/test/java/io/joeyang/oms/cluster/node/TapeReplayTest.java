@@ -61,6 +61,28 @@ class TapeReplayTest {
   }
 
   @Test
+  void countOnlyReplayCountsEveryHeartbeatWithoutCapturingEchoes() throws Exception {
+    final TapeReplay.Result result = TapeReplay.replay(unpackedArchiveDir(), false);
+
+    assertEquals(manifestCount(), result.heartbeats(), "every recorded heartbeat still applies");
+    assertEquals(
+        0,
+        result.echoedTimestamps().length,
+        "count-only replay must not accumulate echoed timestamps");
+  }
+
+  @Test
+  void capturingReplayEntryPointStillEchoesTheGoldenOutputs() throws Exception {
+    final TapeReplay.Result result = TapeReplay.replay(unpackedArchiveDir(), true);
+
+    assertEquals(manifestCount(), result.heartbeats(), "every recorded heartbeat applies");
+    assertArrayEquals(
+        goldenOutputs(),
+        result.echoedTimestamps(),
+        "captureEchoes=true must behave exactly like the single-argument replay");
+  }
+
+  @Test
   void replayingTwiceIsIdentical() throws Exception {
     final File archiveDir = unpackedArchiveDir();
 

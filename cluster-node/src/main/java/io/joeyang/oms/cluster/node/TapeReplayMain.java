@@ -11,8 +11,11 @@ import java.util.Locale;
  * Entry point for app-mode tape replay: applies a golden tape to the bare state machine and
  * verifies the outcome against the tape's manifest and golden outputs.
  *
- * <p>Usage: {@code tape-replay <archive-dir> <manifest> <golden-outputs>}. Exits non-zero on any
- * mismatch — a partial or divergent replay must never look like success.
+ * <p>Usage: {@code tape-replay <archive-dir> <manifest> <golden-outputs|-> [--warmup
+ * <archive-dir>]}. A golden argument of {@code -} verifies the count only (for tapes recorded with
+ * {@code SKIP_GOLDENS}). {@code --warmup} replays another tape first in this same JVM, unreported,
+ * so the measured replay runs on a warm JIT. Exits non-zero on any mismatch — a partial or
+ * divergent replay must never look like success.
  */
 public final class TapeReplayMain {
 
@@ -21,16 +24,42 @@ public final class TapeReplayMain {
   /**
    * Process entry point.
    *
-   * @param args archive directory, manifest path, golden-outputs path
+   * @param args archive directory, manifest path, golden-outputs path or {@code -}, optionally
+   *     {@code --warmup} and a warmup archive directory
    * @throws IOException if the manifest or golden outputs cannot be read
    */
   public static void main(final String[] args) throws IOException {
-    if (args.length != 3) {
-      System.err.println("usage: tape-replay <archive-dir> <manifest> <golden-outputs>");
+    String warmupDir = null;
+    boolean withLatency = false;
+    boolean usageOk = args.length >= 3;
+    for (int i = 3; usageOk && i < args.length; i++) {
+      if ("--warmup".equals(args[i]) && i + 1 < args.length) {
+        warmupDir = args[++i];
+      } else if ("--latency".equals(args[i])) {
+        withLatency = true;
+      } else {
+        usageOk = false;
+      }
+    }
+    if (!usageOk) {
+      System.err.println(
+          "usage: tape-replay <archive-dir> <manifest> <golden-outputs|-> "
+              + "[--warmup <archive-dir>] [--latency]");
       System.exit(2);
     }
 
-    final TapeReplay.Result result = TapeReplay.replay(new File(args[0]));
+    // Count-only replays skip echo capture entirely: nothing reads the timestamps, and
+    // storing 100M of them costs hundreds of megabytes of list growth. The warmup uses the
+    // same mode so it warms exactly the path the measured replay takes.
+    final boolean countOnly = "-".equals(args[2]);
+    if (warmupDir != null) {
+      final TapeReplay.Result warmup = TapeReplay.replay(new File(warmupDir), !countOnly);
+      System.out.printf(
+          Locale.ROOT, "warmup: %d heartbeats replayed, unreported%n", warmup.heartbeats());
+    }
+
+    final LatencyHistogram latency = withLatency ? new LatencyHistogram() : null;
+    final TapeReplay.Result result = TapeReplay.replay(new File(args[0]), !countOnly, latency);
 
     long expected = -1;
     for (final String line : Files.readAllLines(Path.of(args[1]))) {
@@ -39,7 +68,9 @@ public final class TapeReplayMain {
       }
     }
     final long[] golden =
-        Files.readAllLines(Path.of(args[2])).stream().mapToLong(Long::parseLong).toArray();
+        countOnly
+            ? null
+            : Files.readAllLines(Path.of(args[2])).stream().mapToLong(Long::parseLong).toArray();
 
     final double seconds = result.elapsedNanos() / 1e9;
     System.out.printf(
@@ -49,12 +80,28 @@ public final class TapeReplayMain {
         result.otherEntries(),
         seconds,
         result.heartbeats() / seconds);
+    if (latency != null) {
+      System.out.printf(
+          Locale.ROOT,
+          "apply-latency: n=%d p50=%d p90=%d p99=%d p99.9=%d max=%d ns "
+              + "(timing adds two nanoTime reads per apply)%n",
+          latency.count(),
+          latency.valueAtPercentile(50.0),
+          latency.valueAtPercentile(90.0),
+          latency.valueAtPercentile(99.0),
+          latency.valueAtPercentile(99.9),
+          latency.max());
+    }
 
-    if (result.heartbeats() != expected || !Arrays.equals(golden, result.echoedTimestamps())) {
+    if (result.heartbeats() != expected
+        || (!countOnly && !Arrays.equals(golden, result.echoedTimestamps()))) {
       System.err.println(
           "REPLAY MISMATCH: manifest says " + expected + " messages; outputs must equal golden");
       System.exit(1);
     }
-    System.out.println("REPLAY OK: count and outputs match the golden files");
+    System.out.println(
+        countOnly
+            ? "REPLAY OK: count matches the manifest (count-only tape)"
+            : "REPLAY OK: count and outputs match the golden files");
   }
 }

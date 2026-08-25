@@ -19,6 +19,8 @@ import org.agrona.concurrent.ShutdownSignalBarrier;
  *   <li>{@code oms.cluster.port} — first of five consecutive localhost ports (default 9002)
  *   <li>{@code oms.replay.report} — print one line with the count and duration of the
  *       restart-recovery replay once the node reaches leader; observational only
+ *   <li>{@code oms.replay.warmup} — exclude the first N replay applies from the report's timing
+ *       window (JIT warmup; same discard convention as the perf protocol)
  * </ul>
  */
 public final class ClusterNodeMain {
@@ -50,7 +52,8 @@ public final class ClusterNodeMain {
 
     final ClusteredService service =
         Boolean.getBoolean("oms.replay.report")
-            ? new ReplayReportingService(new OmsClusteredService(), System.out)
+            ? new ReplayReportingService(
+                new OmsClusteredService(), System.out, Long.getLong("oms.replay.warmup", 0))
             : new OmsClusteredService();
 
     boolean failed = false;
