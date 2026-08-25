@@ -21,6 +21,19 @@ JVM unreported before replaying and reporting the measured tape.
   100M tape
 - **THEN** the reported count and rate cover only the measured tape
 
+### Requirement: App-mode replay reports apply-latency percentiles on request
+
+With `--latency`, count-only app replay SHALL time each state-machine apply and report
+p50/p90/p99/p99.9/max in nanoseconds over the measured tape, using a preallocated
+log-linear histogram (no per-message allocation, bounded relative error), with the
+sample count and a note that the timing itself adds two clock reads per apply.
+
+#### Scenario: Latency view of a warmed replay
+
+- **WHEN** tape-replay runs count-only with --latency and a --warmup tape
+- **THEN** it prints the percentile line for the measured tape only, with sample count
+  equal to the manifest count
+
 ### Requirement: App-mode replay supports count-only verification
 
 `tape-replay` SHALL accept `-` in place of the golden-outputs path and then verify

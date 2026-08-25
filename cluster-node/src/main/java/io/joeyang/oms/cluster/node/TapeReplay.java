@@ -54,6 +54,21 @@ public final class TapeReplay {
    * @return the replay outcome
    */
   public static Result replay(final File archiveDir, final boolean captureEchoes) {
+    return replay(archiveDir, captureEchoes, null);
+  }
+
+  /**
+   * Replays with an optional apply-latency histogram: when non-null, each state-machine apply is
+   * timed with two {@code System.nanoTime()} reads and recorded. The timing itself costs a few tens
+   * of nanoseconds per message — a latency view, not a throughput benchmark.
+   *
+   * @param archiveDir an unpacked tape's {@code archive/} directory
+   * @param captureEchoes whether to accumulate every echoed timestamp in the result
+   * @param latency histogram to record per-apply nanoseconds into, or null
+   * @return the replay outcome
+   */
+  public static Result replay(
+      final File archiveDir, final boolean captureEchoes, final LatencyHistogram latency) {
     final CapturingSession session = new CapturingSession(captureEchoes);
     final OmsClusteredService service = new OmsClusteredService();
     final Header header = new Header(0, Integer.numberOfTrailingZeros(64 * 1024));
@@ -69,7 +84,13 @@ public final class TapeReplay {
           final DirectBuffer buffer,
           final int offset,
           final int length) {
-        service.onSessionMessage(session, timestamp, buffer, offset, length, header);
+        if (latency != null) {
+          final long before = System.nanoTime();
+          service.onSessionMessage(session, timestamp, buffer, offset, length, header);
+          latency.record(System.nanoTime() - before);
+        } else {
+          service.onSessionMessage(session, timestamp, buffer, offset, length, header);
+        }
         sessionMessages++;
       }
 

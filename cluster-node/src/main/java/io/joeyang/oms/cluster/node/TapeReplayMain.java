@@ -29,11 +29,22 @@ public final class TapeReplayMain {
    * @throws IOException if the manifest or golden outputs cannot be read
    */
   public static void main(final String[] args) throws IOException {
-    final boolean withWarmup = args.length == 5 && "--warmup".equals(args[3]);
-    if (args.length != 3 && !withWarmup) {
+    String warmupDir = null;
+    boolean withLatency = false;
+    boolean usageOk = args.length >= 3;
+    for (int i = 3; usageOk && i < args.length; i++) {
+      if ("--warmup".equals(args[i]) && i + 1 < args.length) {
+        warmupDir = args[++i];
+      } else if ("--latency".equals(args[i])) {
+        withLatency = true;
+      } else {
+        usageOk = false;
+      }
+    }
+    if (!usageOk) {
       System.err.println(
           "usage: tape-replay <archive-dir> <manifest> <golden-outputs|-> "
-              + "[--warmup <archive-dir>]");
+              + "[--warmup <archive-dir>] [--latency]");
       System.exit(2);
     }
 
@@ -41,13 +52,14 @@ public final class TapeReplayMain {
     // storing 100M of them costs hundreds of megabytes of list growth. The warmup uses the
     // same mode so it warms exactly the path the measured replay takes.
     final boolean countOnly = "-".equals(args[2]);
-    if (withWarmup) {
-      final TapeReplay.Result warmup = TapeReplay.replay(new File(args[4]), !countOnly);
+    if (warmupDir != null) {
+      final TapeReplay.Result warmup = TapeReplay.replay(new File(warmupDir), !countOnly);
       System.out.printf(
           Locale.ROOT, "warmup: %d heartbeats replayed, unreported%n", warmup.heartbeats());
     }
 
-    final TapeReplay.Result result = TapeReplay.replay(new File(args[0]), !countOnly);
+    final LatencyHistogram latency = withLatency ? new LatencyHistogram() : null;
+    final TapeReplay.Result result = TapeReplay.replay(new File(args[0]), !countOnly, latency);
 
     long expected = -1;
     for (final String line : Files.readAllLines(Path.of(args[1]))) {
@@ -68,6 +80,18 @@ public final class TapeReplayMain {
         result.otherEntries(),
         seconds,
         result.heartbeats() / seconds);
+    if (latency != null) {
+      System.out.printf(
+          Locale.ROOT,
+          "apply-latency: n=%d p50=%d p90=%d p99=%d p99.9=%d max=%d ns "
+              + "(timing adds two nanoTime reads per apply)%n",
+          latency.count(),
+          latency.valueAtPercentile(50.0),
+          latency.valueAtPercentile(90.0),
+          latency.valueAtPercentile(99.0),
+          latency.valueAtPercentile(99.9),
+          latency.max());
+    }
 
     if (result.heartbeats() != expected
         || (!countOnly && !Arrays.equals(golden, result.echoedTimestamps()))) {
