@@ -41,7 +41,7 @@ Every point: prefault the extracted archive with two sequential reads before the
 run; record `MemAvailable`; 3 measured runs; medians for p50–p99.9, per-run values for
 p99.99 and max.
 
-- [ ] 5.1 Point b: `--pin` CPU 4 + `performance` on CPUs 4 and 6 (no reboot)
+- [x] 5.1 Point b: `--pin` CPU 4 + `performance` on CPUs 4 and 6 (no reboot)
 - [ ] 5.2 User gate: apply the documented GRUB change, reboot, run `isolation.sh apply`
 - [ ] 5.3 Point c: same as 5.1 — runs only if `scripts/isolation.sh check` passes
 - [ ] 5.4 Compile the three-point percentile table and the verdict into the PR; state
