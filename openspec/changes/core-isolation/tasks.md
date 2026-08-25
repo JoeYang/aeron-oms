@@ -26,15 +26,23 @@
 
 ## 4. Machine layer (user applies; tooling checks)
 
-- [ ] 4.1 `scripts/isolation.sh check` — cmdline, IRQ affinity, governor vs recorded layout;
-      nonzero on drift, names each missing layer; detects `CONFIG_NO_HZ_FULL` presence
-- [ ] 4.2 `scripts/isolation.sh apply` — root; per-boot parts only (IRQ masks, governor)
-- [ ] 4.3 Document the GRUB line for the confirmed layout, and the revert
+- [ ] 4.1 `scripts/isolation.sh check` — cmdline (incl. `managed_irq`, `nmi_watchdog=0`),
+      unmanaged IRQ affinity, workqueue cpumask, governor vs recorded layout; nonzero on
+      drift, names each missing layer; detects `CONFIG_NO_HZ_FULL` presence
+- [ ] 4.2 `scripts/isolation.sh apply` — root; per-boot parts only (IRQ masks, workqueue
+      cpumask, governor)
+- [ ] 4.3 Document the GRUB line for the confirmed layout
+      (`isolcpus=domain,managed_irq,4,6 nohz_full=4,6 rcu_nocbs=4,6 nmi_watchdog=0`),
+      and the revert
 
 ## 5. Measure
 
-- [ ] 5.1 Point b: governor `performance` only (no reboot), same protocol as 1.3
-- [ ] 5.2 User gate: confirm layout, apply GRUB change, reboot
-- [ ] 5.3 Point c: full isolation + `--pin`, same protocol
-- [ ] 5.4 Compile the three-point percentile table (p50…p99.99, max) and the verdict into
-      the PR; state machine, kernel, flags alongside every number
+Every point: prefault the extracted archive with two sequential reads before the discarded
+run; record `MemAvailable`; 3 measured runs; medians for p50–p99.9, per-run values for
+p99.99 and max.
+
+- [ ] 5.1 Point b: `--pin` CPU 4 + `performance` on CPUs 4 and 6 (no reboot)
+- [ ] 5.2 User gate: apply the documented GRUB change, reboot, run `isolation.sh apply`
+- [ ] 5.3 Point c: same as 5.1 — runs only if `scripts/isolation.sh check` passes
+- [ ] 5.4 Compile the three-point percentile table and the verdict into the PR; state
+      machine, kernel, and flags alongside every number

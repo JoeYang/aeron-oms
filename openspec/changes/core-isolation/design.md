@@ -25,19 +25,24 @@ no isolation on the current kernel cmdline.
 
 ## Decisions
 
-1. **Core layout: isolate P-cores 4 and 6** (`isolcpus=4,6 nohz_full=4,6 rcu_nocbs=4,6`).
-   They are the two favored cores (5300 MHz vs 5100). The replay hot thread takes CPU 4;
-   CPU 6 is the spare for the next pinning consumer, so one reboot covers both initiatives.
+1. **Core layout: isolate P-cores 4 and 6** — confirmed by the user on 2026-08-25.
+   Kernel line: `isolcpus=domain,managed_irq,4,6 nohz_full=4,6 rcu_nocbs=4,6 nmi_watchdog=0`.
+   The `managed_irq` flag is required: kernel-managed device IRQs (NVMe queues) ignore
+   `/proc/irq/*/smp_affinity` writes, so only the boot flag keeps them off the isolated
+   cores. They are the two favored cores (5300 MHz vs 5100). The replay hot thread takes
+   CPU 4; CPU 6 is the spare for the next pinning consumer, so one reboot covers both
+   initiatives.
    - *Alternative: one core* — minimal, but forces a second GRUB edit + reboot later.
    - *Alternative: four cores* — no current consumer for the extra two; desktop loses 4 of 8
      P-cores for nothing. Rejected per "do not scaffold ahead."
-   - **Needs user confirmation** — it is their machine and their reboot.
 
 2. **Affinity port lives in `//core`**, Linux implementation via FFM `sched_setaffinity` /
    `sched_getaffinity` with `pid=0` (the calling thread). `//core` is the shared port
    library; `gateway` and `cluster-node` both need pinning eventually. No JNI, no
    third-party affinity library — the JDK 25 FFM choice is load-bearing in CLAUDE.md.
    `//cluster-service` visibility is untouched; pinning is an adapter concern.
+   The downcall handle uses `Linker.Option.captureCallState("errno")` so failures can be
+   distinguished (`EINVAL` for a bad CPU vs anything else) and named in the error.
 
 3. **Pin from inside the thread, verify, fail fast.** After `sched_setaffinity`, read the
    mask back and require it to equal the requested single-CPU set; on mismatch throw at
@@ -50,16 +55,27 @@ no isolation on the current kernel cmdline.
    with `EINVAL`.
 
 5. **Machine layer is scripted but user-applied.** `scripts/isolation.sh check` verifies
-   cmdline flags, IRQ affinity, and governor against the recorded layout (exit nonzero on
-   drift); `scripts/isolation.sh apply` (root) sets the boot-volatile parts — IRQ masks and
-   governor — each boot. The GRUB edit itself is documented, never performed by tooling.
+   cmdline flags (including `managed_irq` and `nmi_watchdog=0`), unmanaged IRQ affinity,
+   workqueue cpumask, and governor against the recorded layout (exit nonzero, naming each
+   missing layer); `scripts/isolation.sh apply` (root) sets the boot-volatile parts — IRQ
+   masks, workqueue cpumask, governor — each boot. The GRUB edit itself is documented,
+   never performed by tooling. **The point-(c) measurement is gated on `check` passing**:
+   thread-affinity verification alone cannot detect a failed GRUB edit or a forgotten
+   `apply`, so the script gate is what makes the measurement trustworthy. A systemd unit
+   for `apply` was considered and rejected — the check-gate already protects the
+   measurement, and a unit is machine scaffolding with no other consumer.
 
-6. **Three measurement points, one protocol** (100M tape, `--warmup` 1M, `--latency`,
-   warm page cache, discard first run, 3 measured runs, median of percentiles):
-   a. baseline as-is (powersave, no isolation) — re-recorded with p99.99;
-   b. governor `performance` only (no reboot) — separates the governor's share;
-   c. full isolation + pin (after reboot).
-   Point (b) is nearly free and stops the governor and isolation effects being conflated.
+6. **Three measurement points, one protocol** (100M tape, `--warmup` 1M, `--latency`):
+   a. baseline as-is (powersave, unpinned, no isolation) — re-recorded with p99.99;
+   b. `--pin` CPU 4 + `performance` governor on 4 and 6 (no reboot);
+   c. same as (b) after the isolation reboot, gated on `isolation.sh check`.
+   (b)→(c) then has one variable: the kernel isolation layer. (a)→(b) bundles pin and
+   governor deliberately — PR #25 already measured pin-alone and it hurt the tail.
+   Cache preparation is explicit and identical at every point, because a reboot
+   cold-starts the page cache and a fresh boot has more free RAM: sequentially read the
+   extracted archive twice before the discarded run, and record `MemAvailable` with the
+   results. Three measured runs per point; p50–p99.9 reported as medians, p99.99 and max
+   reported per-run — a median of three maxima hides exactly the statistic under study.
 
 ## Risks / Trade-offs
 
@@ -75,4 +91,5 @@ no isolation on the current kernel cmdline.
 
 ## Open Questions
 
-- Core layout (Decision 1) — awaiting user confirmation before any machine change.
+None. The core layout (Decision 1) was confirmed by the user; the kernel `nohz_full`
+support question was resolved by inspection (`CONFIG_NO_HZ_FULL=y`).
