@@ -32,13 +32,29 @@ public final class TapeReplay {
 
   /**
    * Replays the recording found in the given archive directory through a fresh {@code
-   * OmsClusteredService}.
+   * OmsClusteredService}, capturing every echoed timestamp.
    *
    * @param archiveDir an unpacked tape's {@code archive/} directory
    * @return the replay outcome
    */
   public static Result replay(final File archiveDir) {
-    final CapturingSession session = new CapturingSession();
+    return replay(archiveDir, true);
+  }
+
+  /**
+   * Replays the recording found in the given archive directory through a fresh {@code
+   * OmsClusteredService}.
+   *
+   * <p>With {@code captureEchoes} false the echoes are only counted, not stored — the result's
+   * {@link Result#echoedTimestamps()} is empty. Count-only verification of a large tape then runs
+   * without growing a timestamp list the caller never reads.
+   *
+   * @param archiveDir an unpacked tape's {@code archive/} directory
+   * @param captureEchoes whether to accumulate every echoed timestamp in the result
+   * @return the replay outcome
+   */
+  public static Result replay(final File archiveDir, final boolean captureEchoes) {
+    final CapturingSession session = new CapturingSession(captureEchoes);
     final OmsClusteredService service = new OmsClusteredService();
     final Header header = new Header(0, Integer.numberOfTrailingZeros(64 * 1024));
 
@@ -68,25 +84,34 @@ public final class TapeReplay {
     TapeWalker.walk(archiveDir, applier);
     final long elapsedNanos = System.nanoTime() - startNanos;
 
-    if (session.echoed.size() != applier.sessionMessages) {
+    if (session.echoCount != applier.sessionMessages) {
       throw new IllegalStateException(
           "applied "
               + applier.sessionMessages
               + " session messages but captured "
-              + session.echoed.size()
+              + session.echoCount
               + " echoes");
     }
     return new Result(
-        session.echoed.size(), applier.otherEntries, session.echoed.toLongArray(), elapsedNanos);
+        session.echoCount, applier.otherEntries, session.echoedTimestamps(), elapsedNanos);
   }
 
-  /** Accepts every offer and captures the echoed sequenced timestamp. */
+  /** Accepts every offer, counts every echo, and optionally captures its sequenced timestamp. */
   private static final class CapturingSession implements ClientSession {
 
-    final LongArrayList echoed = new LongArrayList();
+    private final LongArrayList echoed;
+    long echoCount;
     private final io.joeyang.oms.sbe.MessageHeaderDecoder echoHeader =
         new io.joeyang.oms.sbe.MessageHeaderDecoder();
     private final HeartbeatDecoder heartbeat = new HeartbeatDecoder();
+
+    CapturingSession(final boolean captureEchoes) {
+      this.echoed = captureEchoes ? new LongArrayList() : null;
+    }
+
+    long[] echoedTimestamps() {
+      return echoed == null ? new long[0] : echoed.toLongArray();
+    }
 
     @Override
     public long offer(final DirectBuffer buffer, final int offset, final int length) {
@@ -96,7 +121,11 @@ public final class TapeReplay {
           offset + echoHeader.encodedLength(),
           echoHeader.blockLength(),
           echoHeader.version());
-      echoed.add(heartbeat.timestampNanos());
+      final long timestampNanos = heartbeat.timestampNanos();
+      if (echoed != null) {
+        echoed.add(timestampNanos);
+      }
+      echoCount++;
       return length;
     }
 

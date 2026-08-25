@@ -37,13 +37,17 @@ public final class TapeReplayMain {
       System.exit(2);
     }
 
+    // Count-only replays skip echo capture entirely: nothing reads the timestamps, and
+    // storing 100M of them costs hundreds of megabytes of list growth. The warmup uses the
+    // same mode so it warms exactly the path the measured replay takes.
+    final boolean countOnly = "-".equals(args[2]);
     if (withWarmup) {
-      final TapeReplay.Result warmup = TapeReplay.replay(new File(args[4]));
+      final TapeReplay.Result warmup = TapeReplay.replay(new File(args[4]), !countOnly);
       System.out.printf(
           Locale.ROOT, "warmup: %d heartbeats replayed, unreported%n", warmup.heartbeats());
     }
 
-    final TapeReplay.Result result = TapeReplay.replay(new File(args[0]));
+    final TapeReplay.Result result = TapeReplay.replay(new File(args[0]), !countOnly);
 
     long expected = -1;
     for (final String line : Files.readAllLines(Path.of(args[1]))) {
@@ -51,7 +55,6 @@ public final class TapeReplayMain {
         expected = Long.parseLong(line.substring("messages:".length()).trim());
       }
     }
-    final boolean countOnly = "-".equals(args[2]);
     final long[] golden =
         countOnly
             ? null
