@@ -49,6 +49,28 @@ design treats it as an experiment with a mandatory readout, not an assumption.
    hosting and page size change together, the measurement takes a tmpfs-without-huge control
    point so the page-size effect is isolated, keeping the single-variable discipline.
 
+## The veto chain (found empirically, in order)
+
+Getting one PMD-mapped byte required defeating four independent gates, any of which
+silently zeroes the result; the verification line was what exposed each:
+
+1. **ext4 file THP**: needs `CONFIG_READ_ONLY_THP_FOR_FS`, unset on this kernel → tmpfs.
+2. **Folio allocation size is decided at write time**: tar (10 KB blocks) and `cp` (128 KB)
+   produce small folios even on a `huge=always` mount; only writes spanning a full 2 MB do
+   not — the tape must be placed with `dd bs=2M`.
+3. **mTHP per-size gate**: `hugepages-2048kB/shmem_enabled=[inherit]` inherits the global
+   `[never]`; set to `always` for the measurement (set while gate 4 was still masking
+   everything, so its independent necessity is unproven — recorded, not assumed).
+4. **`PR_SET_THP_DISABLE` inherited from the launcher**: the agent harness sets it and every
+   child carries it; it vetoes THP before any madvise, mount option, or sysfs policy is
+   consulted. `--huge` now clears it via FFM `prctl` and the test pins the kernel-visible
+   effect (`THP_enabled` in `/proc/self/status`).
+
+Measurement machine prep: `mount -t tmpfs -o size=16g,huge=always,mode=1777 tmpfs /mnt/tape`,
+`echo always > /sys/kernel/mm/transparent_hugepage/hugepages-2048kB/shmem_enabled`, tape
+placed with `dd bs=2M`. Neither survives reboot; both are measurement fixtures, not machine
+config to keep.
+
 ## Risks / Trade-offs
 
 - [ext4 may not produce file THP on this kernel] → the smaps readout says so definitively;

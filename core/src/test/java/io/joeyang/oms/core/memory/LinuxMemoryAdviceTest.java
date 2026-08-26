@@ -27,6 +27,18 @@ class LinuxMemoryAdviceTest {
   }
 
   @Test
+  void clearsTheProcessThpDisableFlag() throws Exception {
+    // The Claude Code harness (and possibly other launchers) sets PR_SET_THP_DISABLE,
+    // which children inherit; huge pages silently vanish for the whole process. Clearing
+    // must be visible in kernel truth, not assumed.
+    LinuxMemoryAdvice.clearProcessThpDisable();
+
+    final String status =
+        java.nio.file.Files.readString(java.nio.file.Path.of("/proc/self/status"));
+    assertTrue(status.contains("THP_enabled:\t1"), "THP_enabled must be 1 after clearing");
+  }
+
+  @Test
   void unmappedRangeIsRejectedWithTheErrnoName() {
     // The page at 4096 is never mapped in a normal process; madvise must fail with ENOMEM.
     final IllegalArgumentException e =

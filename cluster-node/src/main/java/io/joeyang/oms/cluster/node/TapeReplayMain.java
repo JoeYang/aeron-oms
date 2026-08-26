@@ -94,6 +94,11 @@ public final class TapeReplayMain {
     }
 
     final LatencyHistogram latency = options.withLatency() ? new LatencyHistogram() : null;
+    if (options.huge()) {
+      // Launchers can hand us an inherited PR_SET_THP_DISABLE, which vetoes huge pages
+      // for the whole process before any madvise or mount policy is consulted.
+      LinuxMemoryAdvice.clearProcessThpDisable();
+    }
     final TapeReplay.Result result =
         TapeReplay.replay(
             new File(args[0]),

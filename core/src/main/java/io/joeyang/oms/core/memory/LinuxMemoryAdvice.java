@@ -22,6 +22,7 @@ import java.lang.invoke.VarHandle;
 public final class LinuxMemoryAdvice implements MemoryAdvice {
 
   private static final int MADV_HUGEPAGE = 14;
+  private static final int PR_SET_THP_DISABLE = 41;
   private static final int EINVAL = 22;
   private static final int ENOMEM = 12;
   private static final long PAGE_SIZE = 4096;
@@ -39,6 +40,43 @@ public final class LinuxMemoryAdvice implements MemoryAdvice {
               ValueLayout.JAVA_LONG,
               ValueLayout.JAVA_INT),
           Linker.Option.captureCallState("errno"));
+
+  private static final MethodHandle PRCTL =
+      LINKER.downcallHandle(
+          LINKER.defaultLookup().findOrThrow("prctl"),
+          FunctionDescriptor.of(
+              ValueLayout.JAVA_INT,
+              ValueLayout.JAVA_INT,
+              ValueLayout.JAVA_LONG,
+              ValueLayout.JAVA_LONG,
+              ValueLayout.JAVA_LONG,
+              ValueLayout.JAVA_LONG),
+          Linker.Option.firstVariadicArg(1),
+          Linker.Option.captureCallState("errno"));
+
+  /**
+   * Clears the process-wide {@code PR_SET_THP_DISABLE} flag.
+   *
+   * <p>Some launchers set it and every descendant inherits it, which silently vetoes huge pages for
+   * the whole process regardless of madvise, mount options, or sysfs policy — the per-process flag
+   * is checked before all of them. Verified from {@code /proc/self/status} ({@code THP_enabled});
+   * failure throws because a replay that asked for huge pages and cannot have them must say so, not
+   * run quietly without them.
+   */
+  public static void clearProcessThpDisable() {
+    try (java.lang.foreign.Arena arena = java.lang.foreign.Arena.ofConfined()) {
+      final MemorySegment captured = arena.allocate(CAPTURE_LAYOUT);
+      final int result = (int) PRCTL.invokeExact(captured, PR_SET_THP_DISABLE, 0L, 0L, 0L, 0L);
+      if (result != 0) {
+        throw new IllegalStateException(
+            "prctl(PR_SET_THP_DISABLE, 0) failed with errno " + (int) ERRNO.get(captured, 0L));
+      }
+    } catch (final RuntimeException e) {
+      throw e;
+    } catch (final Throwable t) {
+      throw new IllegalStateException("prctl downcall failed", t);
+    }
+  }
 
   @Override
   public void adviseHugePages(final long address, final long length) {
