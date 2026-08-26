@@ -25,6 +25,11 @@ HOUSEKEEPING_MASK=$((0xfffaf))
 ISOLATED_RE='(^|[,-])(4|6)($|[,-])'   # matches 4 or 6 inside an smp_affinity_list value
 # Legacy timer/cascade IRQs whose affinity the kernel refuses to change.
 UNMOVABLE_IRQS="0 2"
+# IRQ action names exempt from the isolated-core check. dmar*-perf is the IOMMU
+# performance-counter interrupt: it fires only when IOMMU perfmon is explicitly enabled
+# (observed 0 fires since boot), and its effective affinity reprograms lazily, so it can
+# report an isolated CPU it will never actually interrupt.
+EXEMPT_NAME_RE='^dmar[0-9]+-perf$' 
 
 mode=${1:?usage: isolation.sh check|apply}
 fail=0
@@ -52,11 +57,19 @@ check_kernel() {
 }
 
 check_irqs() {
-  local irq name offenders=""
+  # Judge by effective_affinity_list — where the kernel actually delivers. Managed IRQs
+  # (NVMe per-queue MSI-X) keep isolated CPUs in their nominal mask, but the managed_irq
+  # boot flag steers delivery onto the mask's non-isolated members; that steering is what
+  # matters, and it is visible only in the effective list.
+  local irq name file offenders=""
   for irq in /proc/irq/[0-9]*; do
     name=${irq##*/}
     [[ " $UNMOVABLE_IRQS " == *" $name "* ]] && continue
-    if grep -Eq "$ISOLATED_RE" "$irq/smp_affinity_list" 2>/dev/null; then
+    if [[ -n "$(find "$irq" -maxdepth 1 -mindepth 1 -type d -printf '%f\n' \
+                | grep -E "$EXEMPT_NAME_RE" || true)" ]]; then continue; fi
+    file="$irq/effective_affinity_list"
+    [[ -r "$file" ]] || file="$irq/smp_affinity_list"
+    if grep -Eq "$ISOLATED_RE" "$file" 2>/dev/null; then
       offenders+=" $name"
     fi
   done
