@@ -5,8 +5,12 @@
 own noise source, and each lever below targets one. Two levers were approved as separate
 initiatives and are NOT parked: **core isolation (four layers)** — see
 `ideas/cpu-pinning-layers.md`, its revisit trigger has fired — and **huge pages for the
-tape mapping** (TLB pressure: 12.8 GB = 3.3M 4 KB pages vs ~1.5k TLB entries; the
-16→36→62 ns percentile ladder is the TLB-miss ladder). What follows is the rest.
+tape mapping**. *Post-measurement correction (2026-08-27, huge-pages change): the
+"16→36→62 ns percentile ladder is the TLB-miss ladder" attribution was falsified — with
+99.3% of the tape verified PMD-mapped, apply-latency percentiles did not move; the TLB
+cost lives in the untimed streaming decode (+9% replay throughput), because the walker
+warms each page's TLB entry immediately before the timed apply reads it.* What follows is
+the rest.
 
 ## Frequency governor (attacks: run-to-run jitter, mid-run drift)
 

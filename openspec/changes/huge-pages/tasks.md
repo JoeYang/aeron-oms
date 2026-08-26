@@ -16,10 +16,10 @@
 
 ## 3. Measure
 
-- [ ] 3.1 Gate on `scripts/isolation.sh check`; identical protocol (prefault ×2, discard 1,
+- [x] 3.1 Gate on `scripts/isolation.sh check`; identical protocol (prefault ×2, discard 1,
       3 measured); record the huge-pages verification line with every run
 - [x] 3.2 In-place result was 0 kB (ext4 file THP unavailable; MADV_COLLAPSE foreclosed by
       kernel config) — decided with user: tmpfs hosting with huge=always; verification
       extended to ShmemPmdMapped; add a tmpfs-without-huge control point
-- [ ] 3.3 Record results vs core-isolation point (c) in measurements.md; verdict with
+- [x] 3.3 Record results vs core-isolation point (c) in measurements.md; verdict with
       machine, kernel, flags
