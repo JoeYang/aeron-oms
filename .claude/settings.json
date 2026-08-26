@@ -1,21 +1,26 @@
 {
   "permissions": {
     "allow": [
-      "bazel *",
-      "java *",
-      "javac *",
-      "jar *",
-      "git *",
-      "gh *"
+      "Bash(bazel *)",
+      "Bash(java *)",
+      "Bash(javac *)",
+      "Bash(jar *)",
+      "Bash(git *)",
+      "Bash(gh *)"
     ],
     "deny": [
-      "rm -rf",
-      "cat .env",
-      "echo * > .env",
-      "cat **/*.pem",
-      "cat **/*.p12",
-      "cat **/*.jks",
-      "cat ~/.ssh/*"
+      "Bash(rm -rf *)",
+      "Bash(cat .env)",
+      "Bash(echo * > .env)",
+      "Bash(cat **/*.pem)",
+      "Bash(cat **/*.p12)",
+      "Bash(cat **/*.jks)",
+      "Bash(cat ~/.ssh/*)",
+      "Read(.env)",
+      "Read(**/*.pem)",
+      "Read(**/*.p12)",
+      "Read(**/*.jks)",
+      "Read(~/.ssh/**)"
     ]
   },
   "hooks": {
