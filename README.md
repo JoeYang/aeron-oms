@@ -36,6 +36,7 @@ scripts/record-tape.sh <name>    # freeze a golden tape under journal/
 scripts/replay-app.sh <name>     # replay a tape against the bare state machine
 scripts/replay-cluster.sh <name> # replay a tape through cluster recovery
 scripts/replay-bench.sh <name>   # benchmark both replay modes
+scripts/isolation.sh check       # verify the CPU-isolation layout (apply: root, per boot)
 ```
 
 The scripts run from any directory and pass extra arguments through to Bazel, so
