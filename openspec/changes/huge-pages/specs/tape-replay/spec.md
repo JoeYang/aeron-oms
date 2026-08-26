@@ -6,7 +6,8 @@
 
 With `--huge`, count-only replay SHALL advise every segment mapping `MADV_HUGEPAGE` at map
 time via the FFM `madvise` binding, and after the measured walk SHALL report the verified
-huge-page extent (`FilePmdMapped` from `/proc/self/smaps`) against the requested extent.
+huge-page extent (`FilePmdMapped` plus `ShmemPmdMapped` from `/proc/self/smaps`, covering
+disk-backed and tmpfs-hosted tapes) against the requested extent.
 A zero extent MUST be reported explicitly — an unverifiable optimisation is never reported
 as present.
 

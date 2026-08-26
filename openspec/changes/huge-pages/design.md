@@ -37,9 +37,17 @@ design treats it as an experiment with a mandatory readout, not an assumption.
    mirrors the pin's read-back rule: an optimisation that cannot be verified must not be
    reported as present.
 4. **Measurement gated and comparable**: `isolation.sh check` must pass; identical prefault,
-   discard, 3-run protocol; compare against core-isolation point (c). If `FilePmdMapped` is 0,
-   `MADV_COLLAPSE` (kernel 6.1+, synchronous collapse) is the one in-place escalation to try
-   before reporting back — same verification line decides.
+   discard, 3-run protocol; compare against core-isolation point (c).
+
+5. **tmpfs hosting** (decided with the user 2026-08-25, after the ext4 result). The in-place
+   experiment returned `0 kB PMD-mapped`: ext4 file THP needs `CONFIG_READ_ONLY_THP_FOR_FS`,
+   which this kernel does not set, and that also forecloses the planned `MADV_COLLAPSE`
+   escalation. The chosen path hosts the extracted tape on a tmpfs mount with `huge=always`:
+   the mapping code, the walk, and the `--huge` flag are unchanged — only the hosting
+   filesystem differs, and shmem THP is the mature path on this kernel. Verification extends
+   to `ShmemPmdMapped`, which is where smaps accounts tmpfs huge mappings. Because tmpfs
+   hosting and page size change together, the measurement takes a tmpfs-without-huge control
+   point so the page-size effect is isolated, keeping the single-variable discipline.
 
 ## Risks / Trade-offs
 

@@ -110,7 +110,7 @@ public final class TapeReplayMain {
           pmdMappedKb(Files.readAllLines(Path.of("/proc/self/smaps")), archiveDir.getPath());
       System.out.printf(
           Locale.ROOT,
-          "huge-pages: %d kB PMD-mapped of %d kB requested (FilePmdMapped)%n",
+          "huge-pages: %d kB PMD-mapped of %d kB requested (File+ShmemPmdMapped)%n",
           mappedKb,
           requestedKb);
     }
@@ -160,7 +160,8 @@ public final class TapeReplayMain {
     for (final String line : smapsLines) {
       if (line.matches("^[0-9a-f]+-[0-9a-f]+ .*")) {
         inMatchingMapping = line.contains(pathPrefix);
-      } else if (inMatchingMapping && line.startsWith("FilePmdMapped:")) {
+      } else if (inMatchingMapping
+          && (line.startsWith("FilePmdMapped:") || line.startsWith("ShmemPmdMapped:"))) {
         total += Long.parseLong(line.replaceAll("[^0-9]", ""));
       }
     }

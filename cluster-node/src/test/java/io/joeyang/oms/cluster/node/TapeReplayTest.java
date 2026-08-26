@@ -108,9 +108,11 @@ class TapeReplayTest {
             "7f10-7f18 r--s 00000000 103:02 124    /y/other/0-0.rec",
             "FilePmdMapped:      4096 kB",
             "7f20-7f28 r--s 00000000 103:02 125    /x/archive/0-1.rec",
-            "FilePmdMapped:       512 kB");
+            "FilePmdMapped:       512 kB",
+            "7f30-7f38 r--s 00000000 00:45 126    /x/archive/0-2.rec",
+            "ShmemPmdMapped:     1024 kB");
 
-    assertEquals(2560, TapeReplayMain.pmdMappedKb(smaps, "/x/archive"));
+    assertEquals(3584, TapeReplayMain.pmdMappedKb(smaps, "/x/archive"));
   }
 
   @Test
