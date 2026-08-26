@@ -5,6 +5,7 @@ import io.aeron.cluster.codecs.SessionMessageHeaderDecoder;
 import io.aeron.logbuffer.FrameDescriptor;
 import io.aeron.protocol.DataHeaderFlyweight;
 import io.aeron.protocol.HeaderFlyweight;
+import io.joeyang.oms.core.memory.MemoryAdvice;
 import java.io.File;
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -63,6 +64,17 @@ final class TapeWalker {
    * @param handler receives each entry in log order
    */
   static void walk(final File archiveDir, final EntryHandler handler) {
+    walk(archiveDir, handler, null);
+  }
+
+  /**
+   * Walks the recording, advising each segment mapping before it is read.
+   *
+   * @param archiveDir an unpacked tape's {@code archive/} directory
+   * @param handler receives each entry in log order
+   * @param advice applied to each segment mapping at map time, or {@code null} for none
+   */
+  static void walk(final File archiveDir, final EntryHandler handler, final MemoryAdvice advice) {
     final File[] segments = archiveDir.listFiles((dir, name) -> name.endsWith(".rec"));
     if (segments == null || segments.length == 0) {
       throw new IllegalStateException("no recording segments in " + archiveDir);
@@ -81,7 +93,7 @@ final class TapeWalker {
     segmentLoop:
     for (final File segment : segments) {
       final long segmentBase = Long.parseLong(segment.getName().split("[-.]")[1]);
-      final UnsafeBuffer buffer = map(segment);
+      final UnsafeBuffer buffer = map(segment, advice);
       final int capacity = buffer.capacity();
       int offset = 0;
       while (offset < capacity) {
@@ -137,10 +149,14 @@ final class TapeWalker {
     }
   }
 
-  private static UnsafeBuffer map(final File segment) {
+  private static UnsafeBuffer map(final File segment, final MemoryAdvice advice) {
     try (FileChannel channel = FileChannel.open(segment.toPath())) {
       final MappedByteBuffer mapped = channel.map(FileChannel.MapMode.READ_ONLY, 0, channel.size());
-      return new UnsafeBuffer(mapped);
+      final UnsafeBuffer buffer = new UnsafeBuffer(mapped);
+      if (advice != null) {
+        advice.adviseHugePages(buffer.addressOffset(), buffer.capacity());
+      }
+      return buffer;
     } catch (final IOException e) {
       throw new UncheckedIOException("cannot map " + segment, e);
     }

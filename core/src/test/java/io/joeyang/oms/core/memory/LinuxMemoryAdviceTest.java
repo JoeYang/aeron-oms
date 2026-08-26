@@ -18,7 +18,7 @@ class LinuxMemoryAdviceTest {
   private static final long PAGE = 4096;
 
   @Test
-  void advisesALivePageAlignedRange() {
+  void advisesLivePageAlignedRange() {
     try (Arena arena = Arena.ofConfined()) {
       final MemorySegment segment = arena.allocate(2 * 1024 * 1024, PAGE);
       assertDoesNotThrow(
