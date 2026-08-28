@@ -20,12 +20,13 @@ recovery time ever matters operationally.
 
 ## Recovery-path machinery tuning (attacks: the remaining 1.4× vs app-mode)
 
-De-prioritized by the attribution: warm machinery is 5.8 vs 7.9 GB/s, so the whole lever
-is worth at most ~27%. If ever pursued: `archive-conductor` runs at 93% — the archive
-replay feed, not the service, is the top of the funnel. Fragment-limit per poll, idle
-strategies, and pinning the archive/service agents onto isolated cores are the knobs.
-Caveat from the thin-tape work: DEDICATED threading made recovery *slower* there —
-measure, don't assume.
+Measured 2026-08-29 (see `openspec/changes/recovery-tuning/measurements.md`): raising
+`aeron.cluster.log.fragment.limit` and the `oms.lowlatency` busy-spin profile each land
+inside the defaults' noise band, and their combination is reproducibly worse — the
+thin-tape "DEDICATED hurt recovery" caveat held. No knob promoted. The 93%-busy
+archive-conductor is the real limit; closing the remaining ~27% means changing its
+per-fragment work, not its poll cadence. Untried: pinning the archive/service agents onto
+isolated cores.
 
 ## Multi-lane checksum (attacks: apply p50, 1.6 µs)
 
