@@ -21,13 +21,13 @@
 
 ## 4. Gateway + goldens (TDD)
 
-- [ ] 4.1 Failing tests: sequence-derived payload pattern; two-value golden parsing and
+- [x] 4.1 Failing tests: sequence-derived payload pattern; two-value golden parsing and
       comparison, mismatch fails naming the position
-- [ ] 4.2 Fat send mode; replay-side two-value golden verification
+- [x] 4.2 Fat send mode; replay-side two-value golden verification
 
 ## 5. Record and measure
 
-- [ ] 5.0 Smoke: record `local-fatheartbeats-1k` (~32 MB) — proves one 32 KB message
+- [x] 5.0 Smoke: record `local-fatheartbeats-1k` (~32 MB) — proves one 32 KB message
       round-trips ingress and log; becomes the reassembly test fixture
 - [ ] 5.1 `record-tape.sh` fat mode with startup limit check on both ingress and log
       channels; record `local-fatheartbeats-1m` (32 GB); manifest with observed rate
