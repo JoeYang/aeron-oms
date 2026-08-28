@@ -4,10 +4,13 @@ import io.aeron.DirectBufferVector;
 import io.aeron.cluster.service.ClientSession;
 import io.aeron.logbuffer.BufferClaim;
 import io.aeron.logbuffer.Header;
+import io.joeyang.oms.cluster.service.IncrementalPayloadChecksum;
 import io.joeyang.oms.cluster.service.OmsClusteredService;
 import io.joeyang.oms.core.memory.MemoryAdvice;
 import io.joeyang.oms.sbe.FatHeartbeatAckDecoder;
+import io.joeyang.oms.sbe.FatHeartbeatDecoder;
 import io.joeyang.oms.sbe.HeartbeatDecoder;
+import io.joeyang.oms.sbe.MessageHeaderDecoder;
 import java.io.File;
 import org.agrona.DirectBuffer;
 import org.agrona.collections.LongArrayList;
@@ -144,6 +147,132 @@ public final class TapeReplay {
         elapsedNanos);
   }
 
+  /**
+   * Replays with fat chains checksummed in place — no reassembly copy. Fragmented session messages
+   * are consumed as slices: the app headers decode from the first slice, the payload checksums
+   * incrementally across fragment boundaries, and the captured timestamp and checksum are exactly
+   * what the service's ack would carry. Unfragmented entries still apply through the real service,
+   * so echo capture stays in log order across both paths.
+   *
+   * @param archiveDir an unpacked tape's {@code archive/} directory
+   * @param captureEchoes whether to accumulate every echoed timestamp and checksum
+   * @return the replay outcome, shape-identical to {@link #replay(File, boolean)}
+   */
+  public static Result replayZeroCopy(final File archiveDir, final boolean captureEchoes) {
+    final CapturingSession session = new CapturingSession(captureEchoes);
+    final OmsClusteredService service = new OmsClusteredService();
+    final Header header = new Header(0, Integer.numberOfTrailingZeros(64 * 1024));
+    final MessageHeaderDecoder appHeader = new MessageHeaderDecoder();
+    final FatHeartbeatDecoder fatDecoder = new FatHeartbeatDecoder();
+    final IncrementalPayloadChecksum checksum = new IncrementalPayloadChecksum();
+
+    final class ZeroCopyApplier implements TapeWalker.EntryHandler, TapeWalker.ChainSliceHandler {
+      long sessionMessages;
+      long otherEntries;
+      boolean expectingFirstSlice;
+      long chainTimestamp;
+      int declaredPayload;
+      long seenPayload;
+
+      @Override
+      public void onSessionMessage(
+          final long logPosition,
+          final long timestamp,
+          final DirectBuffer buffer,
+          final int offset,
+          final int length) {
+        service.onSessionMessage(session, timestamp, buffer, offset, length, header);
+        sessionMessages++;
+      }
+
+      @Override
+      public void onOtherEntry(final long logPosition, final int templateId) {
+        otherEntries++;
+      }
+
+      @Override
+      public void onFragmentedSessionMessageStart(final long logPosition, final long timestamp) {
+        chainTimestamp = timestamp;
+        expectingFirstSlice = true;
+        declaredPayload = -1;
+        seenPayload = 0;
+        checksum.reset();
+      }
+
+      @Override
+      public void onPayloadSlice(final DirectBuffer buffer, final int offset, final int length) {
+        if (!expectingFirstSlice) {
+          checksum.update(buffer, offset, length);
+          seenPayload += length;
+          return;
+        }
+        expectingFirstSlice = false;
+        if (length < MessageHeaderDecoder.ENCODED_LENGTH) {
+          throw new IllegalStateException(
+              "first slice of " + length + " bytes cannot hold the app message header");
+        }
+        appHeader.wrap(buffer, offset);
+        if (appHeader.schemaId() != FatHeartbeatDecoder.SCHEMA_ID
+            || appHeader.templateId() != FatHeartbeatDecoder.TEMPLATE_ID) {
+          throw new IllegalStateException(
+              "unexpected fragmented template " + appHeader.templateId());
+        }
+        final int headerBytes =
+            appHeader.encodedLength()
+                + appHeader.blockLength()
+                + FatHeartbeatDecoder.payloadHeaderLength();
+        if (length < headerBytes) {
+          throw new IllegalStateException(
+              "first slice of " + length + " bytes cannot hold the fat headers");
+        }
+        fatDecoder.wrap(
+            buffer,
+            offset + appHeader.encodedLength(),
+            appHeader.blockLength(),
+            appHeader.version());
+        declaredPayload = fatDecoder.payloadLength();
+        final int payloadStart = offset + headerBytes;
+        final int payloadInFirst = length - headerBytes;
+        checksum.update(buffer, payloadStart, payloadInFirst);
+        seenPayload += payloadInFirst;
+      }
+
+      @Override
+      public void onFragmentedSessionMessageEnd() {
+        if (seenPayload != declaredPayload) {
+          throw new IllegalStateException(
+              "payload length mismatch: declared "
+                  + declaredPayload
+                  + " but the chain carried "
+                  + seenPayload);
+        }
+        session.captureDirect(chainTimestamp, checksum.finish());
+        checksum.reset();
+        sessionMessages++;
+      }
+    }
+
+    final ZeroCopyApplier applier = new ZeroCopyApplier();
+    final long startNanos = System.nanoTime();
+    TapeWalker.walk(archiveDir, applier, applier);
+    final long elapsedNanos = System.nanoTime() - startNanos;
+
+    if (session.echoCount != applier.sessionMessages) {
+      throw new IllegalStateException(
+          "applied "
+              + applier.sessionMessages
+              + " session messages but captured "
+              + session.echoCount
+              + " echoes");
+    }
+    return new Result(
+        session.echoCount,
+        applier.otherEntries,
+        session.echoedTimestamps(),
+        session.echoedChecksums(),
+        elapsedNanos);
+  }
+
   /** Accepts every offer, counts every echo, and optionally captures its sequenced timestamp. */
   private static final class CapturingSession implements ClientSession {
 
@@ -166,6 +295,15 @@ public final class TapeReplay {
 
     long[] echoedChecksums() {
       return checksums == null ? new long[0] : checksums.toLongArray();
+    }
+
+    /** Records an echo the zero-copy path computed itself, keeping capture in log order. */
+    void captureDirect(final long timestamp, final long checksum) {
+      if (echoed != null) {
+        echoed.add(timestamp);
+        checksums.add(checksum);
+      }
+      echoCount++;
     }
 
     @Override

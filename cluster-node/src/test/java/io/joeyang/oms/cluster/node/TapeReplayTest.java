@@ -142,6 +142,25 @@ class TapeReplayTest {
   }
 
   @Test
+  void zeroCopyFlagParses() {
+    final TapeReplayMain.Options options =
+        TapeReplayMain.parseOptions(new String[] {"a", "m", "-", "--zero-copy"});
+
+    assertTrue(options.ok());
+    assertTrue(options.zeroCopy());
+  }
+
+  @Test
+  void zeroCopyAndLatencyTogetherFailUsage() {
+    assertTrue(
+        !TapeReplayMain.parseOptions(new String[] {"a", "m", "-", "--latency", "--zero-copy"}).ok(),
+        "per-apply timing has no meaning when the apply is fused into the walk");
+    assertTrue(
+        !TapeReplayMain.parseOptions(new String[] {"a", "m", "-", "--huge", "--zero-copy"}).ok(),
+        "the zero-copy path has no advice seam");
+  }
+
+  @Test
   void replayAppliesEveryRecordedHeartbeatAndEchoesTheGoldenOutputs() throws Exception {
     final TapeReplay.Result result = TapeReplay.replay(unpackedArchiveDir());
 

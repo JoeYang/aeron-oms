@@ -26,12 +26,19 @@ public final class TapeReplayMain {
   static final int NO_PIN = -1;
 
   /** Parsed command line: trailing flags after the three positional arguments. */
-  record Options(String warmupDir, boolean withLatency, int pinCpu, boolean huge, boolean ok) {}
+  record Options(
+      String warmupDir,
+      boolean withLatency,
+      int pinCpu,
+      boolean huge,
+      boolean zeroCopy,
+      boolean ok) {}
 
   static Options parseOptions(final String[] args) {
     String warmupDir = null;
     boolean withLatency = false;
     boolean huge = false;
+    boolean zeroCopy = false;
     int pinCpu = NO_PIN;
     boolean usageOk = args.length >= 3;
     for (int i = 3; usageOk && i < args.length; i++) {
@@ -41,6 +48,8 @@ public final class TapeReplayMain {
         withLatency = true;
       } else if ("--huge".equals(args[i])) {
         huge = true;
+      } else if ("--zero-copy".equals(args[i])) {
+        zeroCopy = true;
       } else if ("--pin".equals(args[i]) && i + 1 < args.length) {
         try {
           pinCpu = Integer.parseInt(args[++i]);
@@ -51,7 +60,12 @@ public final class TapeReplayMain {
         usageOk = false;
       }
     }
-    return new Options(warmupDir, withLatency, pinCpu, huge, usageOk);
+    // Per-apply timing has no meaning when the apply is fused into the walk itself, and
+    // the zero-copy path has no advice seam, so both combinations are usage errors.
+    if (zeroCopy && (withLatency || huge)) {
+      usageOk = false;
+    }
+    return new Options(warmupDir, withLatency, pinCpu, huge, zeroCopy, usageOk);
   }
 
   /**
@@ -66,7 +80,8 @@ public final class TapeReplayMain {
     if (!options.ok()) {
       System.err.println(
           "usage: tape-replay <archive-dir> <manifest> <golden-outputs|-> "
-              + "[--warmup <archive-dir>] [--latency] [--pin <cpu>] [--huge]");
+              + "[--warmup <archive-dir>] [--latency] [--pin <cpu>] [--huge] [--zero-copy]"
+              + " (--zero-copy excludes --latency and --huge)");
       System.exit(2);
     }
 
@@ -87,7 +102,11 @@ public final class TapeReplayMain {
     // same mode so it warms exactly the path the measured replay takes.
     final boolean countOnly = "-".equals(args[2]);
     if (options.warmupDir() != null) {
-      final TapeReplay.Result warmup = TapeReplay.replay(new File(options.warmupDir()), !countOnly);
+      // The warmup takes the same path as the measured replay, so it warms exactly that path.
+      final TapeReplay.Result warmup =
+          options.zeroCopy()
+              ? TapeReplay.replayZeroCopy(new File(options.warmupDir()), !countOnly)
+              : TapeReplay.replay(new File(options.warmupDir()), !countOnly);
       System.out.printf(
           Locale.ROOT, "warmup: %d heartbeats replayed, unreported%n", warmup.heartbeats());
     }
@@ -99,11 +118,13 @@ public final class TapeReplayMain {
       LinuxMemoryAdvice.clearProcessThpDisable();
     }
     final TapeReplay.Result result =
-        TapeReplay.replay(
-            new File(args[0]),
-            !countOnly,
-            latency,
-            options.huge() ? new LinuxMemoryAdvice() : null);
+        options.zeroCopy()
+            ? TapeReplay.replayZeroCopy(new File(args[0]), !countOnly)
+            : TapeReplay.replay(
+                new File(args[0]),
+                !countOnly,
+                latency,
+                options.huge() ? new LinuxMemoryAdvice() : null);
     if (options.huge()) {
       final File archiveDir = new File(args[0]).getCanonicalFile();
       long requestedKb = 0;
