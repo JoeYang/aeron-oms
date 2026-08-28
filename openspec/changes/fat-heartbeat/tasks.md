@@ -29,9 +29,9 @@
 
 - [x] 5.0 Smoke: record `local-fatheartbeats-1k` (~32 MB) — proves one 32 KB message
       round-trips ingress and log; becomes the reassembly test fixture
-- [ ] 5.1 `record-tape.sh` fat mode with startup limit check on both ingress and log
+- [x] 5.1 `record-tape.sh` fat mode with startup limit check on both ingress and log
       channels; record `local-fatheartbeats-1m` (32 GB); manifest with observed rate
-- [ ] 5.2 Replay app-mode: count-only throughput (comparable with thin numbers) plus one
+- [x] 5.2 Replay app-mode: count-only throughput (comparable with thin numbers) plus one
       full checksum-verify run (integrity gate), and the `--latency` ladder; replay
       cluster-mode recovery; identical protocol (prefault, discard, 3 runs, MemAvailable)
-- [ ] 5.3 Record results and verdict vs the thin-tape numbers in measurements.md
+- [x] 5.3 Record results and verdict vs the thin-tape numbers in measurements.md
