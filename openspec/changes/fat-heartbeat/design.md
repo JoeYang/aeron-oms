@@ -39,11 +39,29 @@ the state machine, deliberately, barely.
    (64 KB, matching the uint16 door). Unfragmented frames take the existing zero-copy path;
    only BEGIN/…/END chains copy. A chain that ends mid-way (truncated tape) throws, same as
    today's torn-frame rule. The `SessionMessageHeader` lives in the first fragment only.
+   Chains never straddle a term — Aeron's term appender claims space for every fragment of
+   a message at once and rotates with padding when they do not fit — and segments hold whole
+   terms, so no cross-segment state exists. That is Aeron's contract, not ours: the walker
+   still throws defensively on a chain left open at segment end, and the fragmented-fixture
+   test verifies the contract empirically. `tape-cat` shares the walker and inherits
+   reassembly for free; `check-journals.sh` is unaffected (local-* tapes are skipped).
 5. **Goldens format for fat tapes: `<timestamp> <checksum>` per line.** 1M lines is a small
    file; full goldens return (the 100M thin tape was count-only out of necessity, not
    preference). App-mode replay compares both columns; a checksum mismatch is a payload
    integrity failure, which count-only could never catch.
-6. **Recording knob, not a new script**: `record-tape.sh <name> [count]` gains a
+6. **Smoke before scale.** A 1k-message fat tape (~32 MB) is recorded first: it proves a
+   single 32 KB `offer` round-trips ingress and the log before 32 GB is committed to disk,
+   and it is the TDD fixture for reassembly. The startup limit check verifies max message
+   length on **both** the ingress and log channels — they are configured independently.
+
+7. **Comparability is count-only.** Fat throughput is measured with the count-only golden
+   (`-`), the same code path as every thin-tape number; the full checksum-verify run is the
+   integrity gate, reported separately, never compared against count-only thin figures.
+   Goldens are captured from what the service echoes, so the checksum *algorithm* is pinned
+   by hand-computed values in unit tests — a wrong algorithm must fail a test, not become
+   the golden.
+
+8. **Recording knob, not a new script**: `record-tape.sh <name> [count]` gains a
    `TYPE=fat` environment switch the gateway understands. New tape `local-fatheartbeats-1m`,
    git-ignored like the other `local-*` tapes; committed golden tapes untouched.
 
