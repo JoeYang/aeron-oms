@@ -70,10 +70,29 @@ list, needs its own spec (snapshot content, cadence, determinism proof via
 golden-tape-through-snapshot), and is eventually inevitable for any real OMS state.
 Revisit trigger: the state machine holds real order state worth snapshotting.
 
-## Residual apply-tail attribution (attacks: p99.99 ≈ 6 µs, max 14–400 µs)
+## Residual apply-tail: attributed to thermal interrupts (2026-08-29)
 
-The band survives a fully RAM-resident tape, so it is not paging. ~100 events per run at
-p99.99 is enough to catch with `perf` on the isolated core (or JFR safepoint/compilation
-logs) during a latency replay. Same shape as the parked thin-tape residual (p99.99
-≈ 200 ns there); one attribution session likely explains both. Trap: the fault-band
-explanation was already written down once without evidence — attribute before narrating.
+The p99.99 ≈ 6 µs band is **thermal event interrupts (TRM) landing on the isolated core**.
+Evidence, from instrumented fat latency replays (pinned, RAM-resident tape, `isolation.sh
+check` passed):
+
+- **The JVM is exonerated.** `-Xlog:gc*`: zero GC pauses. `-Xlog:safepoint*`: exactly one
+  safepoint per run — the exit Halt — with "Maximum sync time 0 ns". Not GC, not
+  safepoints, not compilation stalls.
+- **Interrupt census on CPU 4 per run window (~6 s):** TRM 191–519 (dominant), CAL ~30,
+  LOC ~21, TLB ~14, RES ~8. The pinned core draws roughly 2× the package TRM rate — the
+  busy 5.3 GHz core crosses thermal thresholds most (package ~71 °C under bench load; the
+  `performance` governor is precisely what heats it).
+- **The arithmetic closes.** ~310 TRM in the 4.2 s measured window × ~38% chance of landing
+  inside a timed 1.6 µs apply ≈ ~118 ≈ the ~100 observed events above the p99.99 knee.
+- **Per-run correlation is monotone:** TRM 191 → p99.99 5.9 µs; 425 → 6.7; 519 → 6.9.
+- **It reconciles the thin tape:** the same ~20–80 events/s sit at p99.99 for 1M fat
+  samples over 4.2 s but beyond p99.9999 for 100M thin samples over 1.5 s — which is why
+  thin p99.99 measures a clean 155–240 ns on the same machine.
+
+Still unattributed: the max band (77–624 µs, a handful of events per run) — too rare for
+the interrupt census to pin; next tool is `perf sched record` or MSR thermal-status reads,
+both root. Mitigations if the 6 µs band ever matters: cooling/package-power (hardware
+reality on a laptop), or accepting it as this machine's thermal noise floor. Trap kept
+from the first attempt: the fault-band explanation was once written down without evidence
+— attribute before narrating.
