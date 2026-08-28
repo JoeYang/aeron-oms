@@ -43,7 +43,11 @@ public final class GatewayMain {
         ipc ? "aeron:ipc" : "localhost:" + basePort,
         intervalMs);
 
-    final RoundTrip roundTrip = fat ? new FatHeartbeatRoundTrip() : new HeartbeatRoundTrip();
+    final int window = Integer.getInteger("oms.gateway.window", 1);
+    final RoundTrip roundTrip = fat ? new FatHeartbeatRoundTrip(window) : new HeartbeatRoundTrip();
+    if (fat && window > 1) {
+      System.out.printf("gateway: pipelined, window=%d outstanding%n", window);
+    }
     if (ipc) {
       // Same host, no UDP: attach to the node's media driver and talk over shared memory.
       // The node's threading profile applies; there is no embedded driver to tune here.

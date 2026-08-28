@@ -2,6 +2,8 @@ package io.joeyang.oms.gateway;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import io.joeyang.oms.core.time.FixedClock;
 import io.joeyang.oms.sbe.FatHeartbeatAckEncoder;
@@ -54,6 +56,8 @@ class FatHeartbeatRoundTripTest {
   @Test
   void listenerCapturesTheAcksTimestampAndChecksum() {
     final FatHeartbeatRoundTrip roundTrip = new FatHeartbeatRoundTrip();
+    roundTrip.beginRun(new java.io.PrintStream(new java.io.ByteArrayOutputStream()), 1);
+    roundTrip.noteSent();
     new FatHeartbeatAckEncoder()
         .wrapAndApplyHeader(buffer, 0, new io.joeyang.oms.sbe.MessageHeaderEncoder())
         .timestampNanos(777L)
@@ -63,5 +67,43 @@ class FatHeartbeatRoundTripTest {
 
     assertEquals(777L, roundTrip.echoedTimestamp());
     assertEquals(0xBEEFL, roundTrip.echoedChecksum());
+  }
+
+  @Test
+  void windowedAcksPrintGoldenLinesInSequencedOrder() {
+    final FatHeartbeatRoundTrip roundTrip = new FatHeartbeatRoundTrip(2);
+    final java.io.ByteArrayOutputStream captured = new java.io.ByteArrayOutputStream();
+    roundTrip.beginRun(new java.io.PrintStream(captured), 5);
+    roundTrip.noteSent();
+    roundTrip.noteSent();
+    final io.joeyang.oms.sbe.FatHeartbeatAckEncoder ack = new FatHeartbeatAckEncoder();
+    ack.wrapAndApplyHeader(buffer, 0, new io.joeyang.oms.sbe.MessageHeaderEncoder())
+        .timestampNanos(111L)
+        .payloadChecksum(7L);
+    roundTrip.onMessage(1L, 0L, buffer, 0, 48, null);
+    ack.wrapAndApplyHeader(buffer, 0, new io.joeyang.oms.sbe.MessageHeaderEncoder())
+        .timestampNanos(222L)
+        .payloadChecksum(8L);
+    roundTrip.onMessage(1L, 0L, buffer, 0, 48, null);
+
+    final String[] lines = captured.toString().split(System.lineSeparator());
+    assertEquals(2, lines.length);
+    assertEquals(0, lines[0].indexOf("fat  1/5"), "first ack line: " + lines[0]);
+    assertTrue(lines[0].contains("sequenced=111 checksum=7"), lines[0]);
+    assertEquals(0, lines[1].indexOf("fat  2/5"), "second ack line: " + lines[1]);
+    assertTrue(lines[1].contains("sequenced=222 checksum=8"), lines[1]);
+  }
+
+  @Test
+  void ackWithoutAnOutstandingSendFailsLoudly() {
+    final FatHeartbeatRoundTrip roundTrip = new FatHeartbeatRoundTrip(2);
+    roundTrip.beginRun(new java.io.PrintStream(new java.io.ByteArrayOutputStream()), 1);
+    new FatHeartbeatAckEncoder()
+        .wrapAndApplyHeader(buffer, 0, new io.joeyang.oms.sbe.MessageHeaderEncoder())
+        .timestampNanos(1L)
+        .payloadChecksum(2L);
+
+    assertThrows(
+        IllegalStateException.class, () -> roundTrip.onMessage(1L, 0L, buffer, 0, 48, null));
   }
 }
