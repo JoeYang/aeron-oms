@@ -27,6 +27,9 @@ import org.agrona.concurrent.UnsafeBuffer;
  */
 final class TapeWalker {
 
+  /** Reassembly cap: the 64 KB payload door plus headers, with generous headroom. */
+  private static final int MAX_ENTRY_LENGTH = 128 * 1024;
+
   private static final byte UNFRAGMENTED =
       (byte) (FrameDescriptor.BEGIN_FRAG_FLAG | FrameDescriptor.END_FRAG_FLAG);
 
@@ -77,6 +80,12 @@ final class TapeWalker {
 
     final MessageHeaderDecoder messageHeader = new MessageHeaderDecoder();
     final SessionMessageHeaderDecoder sessionHeader = new SessionMessageHeaderDecoder();
+    // Reassembly scratch for BEGIN/…/END chains. A chain never spans a term (the term
+    // appender claims space for every fragment of a message at once), so it can never span
+    // a segment either; the walker still checks that contract defensively below.
+    final UnsafeBuffer scratch = new UnsafeBuffer(new byte[MAX_ENTRY_LENGTH]);
+    int chainLength = 0;
+    long chainStartPosition = 0;
 
     segmentLoop:
     for (final File segment : segments) {
@@ -93,6 +102,10 @@ final class TapeWalker {
             buffer.getInt(
                 offset + HeaderFlyweight.FRAME_LENGTH_FIELD_OFFSET, ByteOrder.LITTLE_ENDIAN);
         if (frameLength == 0) {
+          if (chainLength > 0) {
+            throw new IllegalStateException(
+                "fragment chain left open at the zeroed tail of " + segment.getName());
+          }
           break segmentLoop; // zeroed tail: the recording ends here
         }
         final int alignedLength = BitUtil.align(frameLength, FrameDescriptor.FRAME_ALIGNMENT);
@@ -105,35 +118,89 @@ final class TapeWalker {
                 & 0xFFFF;
         if (type == HeaderFlyweight.HDR_TYPE_DATA) {
           final byte flags = buffer.getByte(offset + HeaderFlyweight.FLAGS_FIELD_OFFSET);
-          if ((flags & UNFRAGMENTED) != UNFRAGMENTED) {
-            throw new IllegalStateException(
-                "fragmented frame at " + offset + " — not supported by this reader");
-          }
-          final long logPosition = segmentBase + offset;
-          final int entryOffset = offset + DataHeaderFlyweight.HEADER_LENGTH;
-          messageHeader.wrap(buffer, entryOffset);
-          if (messageHeader.schemaId() == MessageHeaderDecoder.SCHEMA_ID
-              && messageHeader.templateId() == SessionMessageHeaderDecoder.TEMPLATE_ID) {
-            sessionHeader.wrap(
+          final int bodyOffset = offset + DataHeaderFlyweight.HEADER_LENGTH;
+          final int bodyLength = frameLength - DataHeaderFlyweight.HEADER_LENGTH;
+          if ((flags & UNFRAGMENTED) == UNFRAGMENTED) {
+            if (chainLength > 0) {
+              throw new IllegalStateException(
+                  "fragment chain interrupted by an unfragmented frame at " + offset);
+            }
+            deliver(
+                handler,
+                messageHeader,
+                sessionHeader,
                 buffer,
-                entryOffset + messageHeader.encodedLength(),
-                messageHeader.blockLength(),
-                messageHeader.version());
-            final int payloadOffset =
-                entryOffset + messageHeader.encodedLength() + messageHeader.blockLength();
-            final int payloadLength =
-                frameLength
-                    - DataHeaderFlyweight.HEADER_LENGTH
-                    - messageHeader.encodedLength()
-                    - messageHeader.blockLength();
-            handler.onSessionMessage(
-                logPosition, sessionHeader.timestamp(), buffer, payloadOffset, payloadLength);
+                bodyOffset,
+                bodyLength,
+                segmentBase + offset);
+          } else if ((flags & FrameDescriptor.BEGIN_FRAG_FLAG) != 0) {
+            if (chainLength > 0) {
+              throw new IllegalStateException(
+                  "fragment chain reopened before its END, at " + offset);
+            }
+            chainStartPosition = segmentBase + offset;
+            scratch.putBytes(0, buffer, bodyOffset, bodyLength);
+            chainLength = bodyLength;
           } else {
-            handler.onOtherEntry(logPosition, messageHeader.templateId());
+            if (chainLength == 0) {
+              throw new IllegalStateException(
+                  "fragment continuation without an open chain at " + offset);
+            }
+            if (chainLength + bodyLength > MAX_ENTRY_LENGTH) {
+              throw new IllegalStateException(
+                  "fragment chain exceeds " + MAX_ENTRY_LENGTH + " bytes at " + offset);
+            }
+            scratch.putBytes(chainLength, buffer, bodyOffset, bodyLength);
+            chainLength += bodyLength;
+            if ((flags & FrameDescriptor.END_FRAG_FLAG) != 0) {
+              deliver(
+                  handler,
+                  messageHeader,
+                  sessionHeader,
+                  scratch,
+                  0,
+                  chainLength,
+                  chainStartPosition);
+              chainLength = 0;
+            }
           }
+        } else if (chainLength > 0) {
+          throw new IllegalStateException(
+              "fragment chain interrupted by a non-data frame at " + offset);
         }
         offset += alignedLength;
       }
+      if (chainLength > 0) {
+        throw new IllegalStateException(
+            "fragment chain left open at the end of " + segment.getName());
+      }
+    }
+  }
+
+  private static void deliver(
+      final EntryHandler handler,
+      final MessageHeaderDecoder messageHeader,
+      final SessionMessageHeaderDecoder sessionHeader,
+      final DirectBuffer buffer,
+      final int entryOffset,
+      final int entryLength,
+      final long logPosition) {
+    messageHeader.wrap(buffer, entryOffset);
+    if (messageHeader.schemaId() == MessageHeaderDecoder.SCHEMA_ID
+        && messageHeader.templateId() == SessionMessageHeaderDecoder.TEMPLATE_ID) {
+      sessionHeader.wrap(
+          buffer,
+          entryOffset + messageHeader.encodedLength(),
+          messageHeader.blockLength(),
+          messageHeader.version());
+      final int payloadOffset =
+          entryOffset + messageHeader.encodedLength() + messageHeader.blockLength();
+      final int payloadLength =
+          entryLength - messageHeader.encodedLength() - messageHeader.blockLength();
+      handler.onSessionMessage(
+          logPosition, sessionHeader.timestamp(), buffer, payloadOffset, payloadLength);
+    } else {
+      handler.onOtherEntry(logPosition, messageHeader.templateId());
     }
   }
 

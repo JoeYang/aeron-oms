@@ -5,6 +5,7 @@ import io.aeron.cluster.service.ClientSession;
 import io.aeron.logbuffer.BufferClaim;
 import io.aeron.logbuffer.Header;
 import io.joeyang.oms.cluster.service.OmsClusteredService;
+import io.joeyang.oms.sbe.FatHeartbeatAckDecoder;
 import io.joeyang.oms.sbe.HeartbeatDecoder;
 import java.io.File;
 import org.agrona.DirectBuffer;
@@ -28,7 +29,11 @@ public final class TapeReplay {
    * @param elapsedNanos wall time spent decoding and applying
    */
   public record Result(
-      long heartbeats, long otherEntries, long[] echoedTimestamps, long elapsedNanos) {}
+      long heartbeats,
+      long otherEntries,
+      long[] echoedTimestamps,
+      long[] echoedChecksums,
+      long elapsedNanos) {}
 
   /**
    * Replays the recording found in the given archive directory through a fresh {@code
@@ -114,37 +119,59 @@ public final class TapeReplay {
               + " echoes");
     }
     return new Result(
-        session.echoCount, applier.otherEntries, session.echoedTimestamps(), elapsedNanos);
+        session.echoCount,
+        applier.otherEntries,
+        session.echoedTimestamps(),
+        session.echoedChecksums(),
+        elapsedNanos);
   }
 
   /** Accepts every offer, counts every echo, and optionally captures its sequenced timestamp. */
   private static final class CapturingSession implements ClientSession {
 
     private final LongArrayList echoed;
+    private final LongArrayList checksums;
     long echoCount;
     private final io.joeyang.oms.sbe.MessageHeaderDecoder echoHeader =
         new io.joeyang.oms.sbe.MessageHeaderDecoder();
     private final HeartbeatDecoder heartbeat = new HeartbeatDecoder();
+    private final FatHeartbeatAckDecoder fatAck = new FatHeartbeatAckDecoder();
 
     CapturingSession(final boolean captureEchoes) {
       this.echoed = captureEchoes ? new LongArrayList() : null;
+      this.checksums = captureEchoes ? new LongArrayList() : null;
     }
 
     long[] echoedTimestamps() {
       return echoed == null ? new long[0] : echoed.toLongArray();
     }
 
+    long[] echoedChecksums() {
+      return checksums == null ? new long[0] : checksums.toLongArray();
+    }
+
     @Override
     public long offer(final DirectBuffer buffer, final int offset, final int length) {
       echoHeader.wrap(buffer, offset);
-      heartbeat.wrap(
-          buffer,
-          offset + echoHeader.encodedLength(),
-          echoHeader.blockLength(),
-          echoHeader.version());
-      final long timestampNanos = heartbeat.timestampNanos();
-      if (echoed != null) {
-        echoed.add(timestampNanos);
+      if (echoHeader.templateId() == FatHeartbeatAckDecoder.TEMPLATE_ID) {
+        fatAck.wrap(
+            buffer,
+            offset + echoHeader.encodedLength(),
+            echoHeader.blockLength(),
+            echoHeader.version());
+        if (echoed != null) {
+          echoed.add(fatAck.timestampNanos());
+          checksums.add(fatAck.payloadChecksum());
+        }
+      } else {
+        heartbeat.wrap(
+            buffer,
+            offset + echoHeader.encodedLength(),
+            echoHeader.blockLength(),
+            echoHeader.version());
+        if (echoed != null) {
+          echoed.add(heartbeat.timestampNanos());
+        }
       }
       echoCount++;
       return length;

@@ -35,11 +35,15 @@ public final class GatewayMain {
     final long intervalMs = Long.getLong("oms.gateway.interval.ms", 1_000L);
 
     final boolean ipc = Boolean.getBoolean("oms.ipc");
+    final boolean fat = Boolean.getBoolean("oms.gateway.fat");
     System.out.printf(
-        "gateway: sending %d heartbeats via %s, one per %d ms%n",
-        count, ipc ? "aeron:ipc" : "localhost:" + basePort, intervalMs);
+        "gateway: sending %d %s via %s, one per %d ms%n",
+        count,
+        fat ? "fat-heartbeats (32 KB)" : "heartbeats",
+        ipc ? "aeron:ipc" : "localhost:" + basePort,
+        intervalMs);
 
-    final HeartbeatRoundTrip roundTrip = new HeartbeatRoundTrip();
+    final RoundTrip roundTrip = fat ? new FatHeartbeatRoundTrip() : new HeartbeatRoundTrip();
     if (ipc) {
       // Same host, no UDP: attach to the node's media driver and talk over shared memory.
       // The node's threading profile applies; there is no embedded driver to tune here.

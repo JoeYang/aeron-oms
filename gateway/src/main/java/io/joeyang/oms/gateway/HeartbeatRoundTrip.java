@@ -1,7 +1,6 @@
 package io.joeyang.oms.gateway;
 
 import io.aeron.cluster.client.AeronCluster;
-import io.aeron.cluster.client.EgressListener;
 import io.aeron.logbuffer.Header;
 import io.joeyang.oms.core.time.Clock;
 import io.joeyang.oms.sbe.HeartbeatDecoder;
@@ -21,7 +20,7 @@ import org.agrona.concurrent.UnsafeBuffer;
  * <p>Outbound timestamps come through the {@link Clock} port, never from a scattered ambient read;
  * the port is what keeps the time source swappable in tests.
  */
-final class HeartbeatRoundTrip implements EgressListener {
+final class HeartbeatRoundTrip implements RoundTrip {
 
   private static final long ECHO_TIMEOUT_MS = 10_000;
 
@@ -55,7 +54,8 @@ final class HeartbeatRoundTrip implements EgressListener {
     echoedNanos = heartbeatDecoder.timestampNanos();
   }
 
-  void run(
+  @Override
+  public void run(
       final AeronCluster cluster,
       final Clock clock,
       final int count,
