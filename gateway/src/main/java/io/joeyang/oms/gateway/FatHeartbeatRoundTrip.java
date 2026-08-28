@@ -130,6 +130,7 @@ final class FatHeartbeatRoundTrip implements RoundTrip {
 
     long sequence = 0;
     long deadline = System.currentTimeMillis() + PROGRESS_TIMEOUT_MS;
+    final long startedAt = System.nanoTime();
     while (window.acked() < count) {
       if (sequence < count && window.hasRoom()) {
         final int length = encodeFatHeartbeat(buffer, 0, clock, sequence + 1, payloadScratch);
@@ -159,6 +160,10 @@ final class FatHeartbeatRoundTrip implements RoundTrip {
         deadline = pollForProgress(cluster, deadline);
       }
     }
+    final double elapsedSeconds = (System.nanoTime() - startedAt) / 1e9;
+    out.printf(
+        "fat-stream: %d messages in %.3f s = %,.0f msg/s (window=%d)%n",
+        count, elapsedSeconds, count / elapsedSeconds, windowSize);
   }
 
   /** Polls egress; any ack refreshes the deadline, no progress checks it. */
