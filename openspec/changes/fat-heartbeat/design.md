@@ -31,10 +31,19 @@ the state machine, deliberately, barely.
 2. **Payload content is a deterministic pattern** derived from the message sequence (e.g.
    repeating the sequence bytes), never random: a tape must mean one exact byte stream. The
    pattern makes checksums predictable and corruption visible.
-3. **Checksum: simple 64-bit sum/XOR over the payload, implemented in `//cluster-service`
-   with no dependencies.** Not a CRC library (no new deps on the hot path, "ask first") and
-   not cryptographic (this is integrity-of-replay, not security). Must read every byte — the
-   point is that the apply pays the honest memory cost.
+3a. **The echo rides a dedicated `FatHeartbeatAck`** (`timestampNanos`, `payloadChecksum`),
+   appended in the same version bump — the review and original design named the echo's
+   values but no message to carry them. A distinct ack keeps ingress and egress concerns
+   separate instead of overloading Heartbeat's reserve bytes.
+
+3. **Checksum: rotate-left-1-and-XOR over little-endian longs** (tail bytes zero-padded into
+   the final long): order-sensitive unlike a plain sum, two ops per 8 bytes so ~4k steps for
+   32 KB (~1–2 µs — memory-honest without drowning the measurement in multiply latency).
+   Pinned in tests two independent ways: a byte-wise reference implementation that must agree
+   with the long-wise production code, and hard constants for tiny hand-checkable payloads.
+   Implemented in `//cluster-service` with no dependencies — not a CRC library (no new deps
+   on the hot path, "ask first") and not cryptographic (integrity-of-replay, not security).
+   Must read every byte — the point is that the apply pays the honest memory cost.
 4. **Walker reassembly with a preallocated scratch buffer** sized to the max message
    (64 KB, matching the uint16 door). Unfragmented frames take the existing zero-copy path;
    only BEGIN/…/END chains copy. A chain that ends mid-way (truncated tape) throws, same as
