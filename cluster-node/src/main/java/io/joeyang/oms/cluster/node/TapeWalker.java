@@ -25,6 +25,12 @@ import org.agrona.concurrent.UnsafeBuffer;
  *
  * <p>Deliberately strict: a truncated or fragmented frame throws rather than yielding a partial
  * walk, because a tape that half-decodes silently would defeat its purpose as a fixture.
+ *
+ * <p>With a {@link ChainSliceHandler} supplied, a fragment chain that is a session message is
+ * delivered as its payload slices in log order instead of being reassembled — no scratch copy.
+ * Everything else (unfragmented entries, non-session chains, chains whose BEGIN fragment cannot
+ * hold the session headers) takes the copy path unchanged, and every chain-contract violation
+ * throws exactly as it does without slice mode.
  */
 final class TapeWalker {
 
@@ -60,14 +66,38 @@ final class TapeWalker {
     void onOtherEntry(long logPosition, int templateId);
   }
 
+  /** Receives fragmented session messages as payload slices, in log order, without a copy. */
+  interface ChainSliceHandler {
+
+    /**
+     * A fragment chain carrying a session message begins.
+     *
+     * @param logPosition byte position of the chain's first frame in the recorded log
+     * @param timestamp the sequenced cluster timestamp carried by the entry
+     */
+    void onFragmentedSessionMessageStart(long logPosition, long timestamp);
+
+    /**
+     * One slice of the application payload; the first slice starts after the session headers.
+     *
+     * @param buffer mapped segment holding the slice
+     * @param offset slice start
+     * @param length slice length
+     */
+    void onPayloadSlice(DirectBuffer buffer, int offset, int length);
+
+    /** The chain's END fragment has been delivered; the entry is complete. */
+    void onFragmentedSessionMessageEnd();
+  }
+
   /**
-   * Walks the recording found in the given archive directory.
+   * Walks the recording found in the given archive directory, reassembling every chain.
    *
    * @param archiveDir an unpacked tape's {@code archive/} directory
    * @param handler receives each entry in log order
    */
   static void walk(final File archiveDir, final EntryHandler handler) {
-    walk(archiveDir, handler, null);
+    walk(archiveDir, handler, null, null);
   }
 
   /**
@@ -78,6 +108,35 @@ final class TapeWalker {
    * @param advice applied to each segment mapping at map time, or {@code null} for none
    */
   static void walk(final File archiveDir, final EntryHandler handler, final MemoryAdvice advice) {
+    walk(archiveDir, handler, null, advice);
+  }
+
+  /**
+   * Walks the recording, delivering session-message chains as slices when a slice handler is
+   * supplied.
+   *
+   * @param archiveDir an unpacked tape's {@code archive/} directory
+   * @param handler receives unfragmented entries, non-session chains, and other entries
+   * @param sliceHandler receives fragmented session messages as slices; null for copy-only
+   */
+  static void walk(
+      final File archiveDir, final EntryHandler handler, final ChainSliceHandler sliceHandler) {
+    walk(archiveDir, handler, sliceHandler, null);
+  }
+
+  /**
+   * Walks the recording with optional slice delivery and optional memory advice.
+   *
+   * @param archiveDir an unpacked tape's {@code archive/} directory
+   * @param handler receives unfragmented entries, non-session chains, and other entries
+   * @param sliceHandler receives fragmented session messages as slices; null for copy-only
+   * @param advice applied to each segment mapping at map time, or {@code null} for none
+   */
+  static void walk(
+      final File archiveDir,
+      final EntryHandler handler,
+      final ChainSliceHandler sliceHandler,
+      final MemoryAdvice advice) {
     final File[] segments = archiveDir.listFiles((dir, name) -> name.endsWith(".rec"));
     if (segments == null || segments.length == 0) {
       throw new IllegalStateException("no recording segments in " + archiveDir);
@@ -96,6 +155,8 @@ final class TapeWalker {
     // appender claims space for every fragment of a message at once), so it can never span
     // a segment either; the walker still checks that contract defensively below.
     final UnsafeBuffer scratch = new UnsafeBuffer(new byte[MAX_ENTRY_LENGTH]);
+    boolean chainOpen = false;
+    boolean chainSliced = false;
     int chainLength = 0;
     long chainStartPosition = 0;
 
@@ -114,7 +175,7 @@ final class TapeWalker {
             buffer.getInt(
                 offset + HeaderFlyweight.FRAME_LENGTH_FIELD_OFFSET, ByteOrder.LITTLE_ENDIAN);
         if (frameLength == 0) {
-          if (chainLength > 0) {
+          if (chainOpen) {
             throw new IllegalStateException(
                 "fragment chain left open at the zeroed tail of " + segment.getName());
           }
@@ -133,7 +194,7 @@ final class TapeWalker {
           final int bodyOffset = offset + DataHeaderFlyweight.HEADER_LENGTH;
           final int bodyLength = frameLength - DataHeaderFlyweight.HEADER_LENGTH;
           if ((flags & UNFRAGMENTED) == UNFRAGMENTED) {
-            if (chainLength > 0) {
+            if (chainOpen) {
               throw new IllegalStateException(
                   "fragment chain interrupted by an unfragmented frame at " + offset);
             }
@@ -146,15 +207,30 @@ final class TapeWalker {
                 bodyLength,
                 segmentBase + offset);
           } else if ((flags & FrameDescriptor.BEGIN_FRAG_FLAG) != 0) {
-            if (chainLength > 0) {
+            if (chainOpen) {
               throw new IllegalStateException(
                   "fragment chain reopened before its END, at " + offset);
             }
+            chainOpen = true;
             chainStartPosition = segmentBase + offset;
-            scratch.putBytes(0, buffer, bodyOffset, bodyLength);
-            chainLength = bodyLength;
+            chainSliced =
+                sliceHandler != null
+                    && beginSlicedChain(
+                        sliceHandler,
+                        messageHeader,
+                        sessionHeader,
+                        buffer,
+                        bodyOffset,
+                        bodyLength,
+                        chainStartPosition);
+            if (chainSliced) {
+              chainLength = bodyLength;
+            } else {
+              scratch.putBytes(0, buffer, bodyOffset, bodyLength);
+              chainLength = bodyLength;
+            }
           } else {
-            if (chainLength == 0) {
+            if (!chainOpen) {
               throw new IllegalStateException(
                   "fragment continuation without an open chain at " + offset);
             }
@@ -162,31 +238,77 @@ final class TapeWalker {
               throw new IllegalStateException(
                   "fragment chain exceeds " + MAX_ENTRY_LENGTH + " bytes at " + offset);
             }
-            scratch.putBytes(chainLength, buffer, bodyOffset, bodyLength);
-            chainLength += bodyLength;
-            if ((flags & FrameDescriptor.END_FRAG_FLAG) != 0) {
-              deliver(
-                  handler,
-                  messageHeader,
-                  sessionHeader,
-                  scratch,
-                  0,
-                  chainLength,
-                  chainStartPosition);
-              chainLength = 0;
+            if (chainSliced) {
+              sliceHandler.onPayloadSlice(buffer, bodyOffset, bodyLength);
+              chainLength += bodyLength;
+              if ((flags & FrameDescriptor.END_FRAG_FLAG) != 0) {
+                sliceHandler.onFragmentedSessionMessageEnd();
+                chainOpen = false;
+                chainLength = 0;
+              }
+            } else {
+              scratch.putBytes(chainLength, buffer, bodyOffset, bodyLength);
+              chainLength += bodyLength;
+              if ((flags & FrameDescriptor.END_FRAG_FLAG) != 0) {
+                deliver(
+                    handler,
+                    messageHeader,
+                    sessionHeader,
+                    scratch,
+                    0,
+                    chainLength,
+                    chainStartPosition);
+                chainOpen = false;
+                chainLength = 0;
+              }
             }
           }
-        } else if (chainLength > 0) {
+        } else if (chainOpen) {
           throw new IllegalStateException(
               "fragment chain interrupted by a non-data frame at " + offset);
         }
         offset += alignedLength;
       }
-      if (chainLength > 0) {
+      if (chainOpen) {
         throw new IllegalStateException(
             "fragment chain left open at the end of " + segment.getName());
       }
     }
+  }
+
+  /**
+   * Starts slice delivery if the BEGIN fragment holds a complete session header.
+   *
+   * @return true when the chain is being sliced; false to take the copy path
+   */
+  private static boolean beginSlicedChain(
+      final ChainSliceHandler sliceHandler,
+      final MessageHeaderDecoder messageHeader,
+      final SessionMessageHeaderDecoder sessionHeader,
+      final DirectBuffer buffer,
+      final int bodyOffset,
+      final int bodyLength,
+      final long logPosition) {
+    if (bodyLength < MessageHeaderDecoder.ENCODED_LENGTH) {
+      return false;
+    }
+    messageHeader.wrap(buffer, bodyOffset);
+    if (messageHeader.schemaId() != MessageHeaderDecoder.SCHEMA_ID
+        || messageHeader.templateId() != SessionMessageHeaderDecoder.TEMPLATE_ID) {
+      return false;
+    }
+    final int headersLength = messageHeader.encodedLength() + messageHeader.blockLength();
+    if (bodyLength < headersLength) {
+      return false;
+    }
+    sessionHeader.wrap(
+        buffer,
+        bodyOffset + messageHeader.encodedLength(),
+        messageHeader.blockLength(),
+        messageHeader.version());
+    sliceHandler.onFragmentedSessionMessageStart(logPosition, sessionHeader.timestamp());
+    sliceHandler.onPayloadSlice(buffer, bodyOffset + headersLength, bodyLength - headersLength);
+    return true;
   }
 
   private static void deliver(
