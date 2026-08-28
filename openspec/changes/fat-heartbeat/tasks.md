@@ -15,9 +15,9 @@
 
 ## 3. Walker reassembly (TDD)
 
-- [ ] 3.1 Failing tests: fragmented entry reassembled whole; truncated chain throws;
+- [x] 3.1 Failing tests: fragmented entry reassembled whole; truncated chain throws;
       thin tapes still walk the zero-copy path (existing golden tape green)
-- [ ] 3.2 Implement BEGIN/…/END reassembly with a preallocated 64 KB scratch buffer
+- [x] 3.2 Implement BEGIN/…/END reassembly with a preallocated 64 KB scratch buffer
 
 ## 4. Gateway + goldens (TDD)
 
