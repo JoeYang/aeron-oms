@@ -8,6 +8,8 @@ import io.aeron.cluster.service.Cluster;
 import io.aeron.cluster.service.ClusteredService;
 import io.aeron.logbuffer.Header;
 import io.joeyang.oms.core.time.SequencedClock;
+import io.joeyang.oms.sbe.FatHeartbeatAckEncoder;
+import io.joeyang.oms.sbe.FatHeartbeatDecoder;
 import io.joeyang.oms.sbe.HeartbeatDecoder;
 import io.joeyang.oms.sbe.HeartbeatEncoder;
 import io.joeyang.oms.sbe.MessageHeaderDecoder;
@@ -35,6 +37,8 @@ public final class OmsClusteredService implements ClusteredService {
   private final MessageHeaderDecoder headerDecoder = new MessageHeaderDecoder();
   private final MessageHeaderEncoder headerEncoder = new MessageHeaderEncoder();
   private final HeartbeatEncoder response = new HeartbeatEncoder();
+  private final FatHeartbeatDecoder fatDecoder = new FatHeartbeatDecoder();
+  private final FatHeartbeatAckEncoder fatAck = new FatHeartbeatAckEncoder();
   private final UnsafeBuffer egressBuffer = new UnsafeBuffer(ByteBuffer.allocateDirect(64));
   private final IdleStrategy retryIdle;
 
@@ -61,13 +65,37 @@ public final class OmsClusteredService implements ClusteredService {
       return;
     }
     headerDecoder.wrap(buffer, offset);
-    if (headerDecoder.schemaId() != HeartbeatDecoder.SCHEMA_ID
-        || headerDecoder.templateId() != HeartbeatDecoder.TEMPLATE_ID) {
+    if (headerDecoder.schemaId() != HeartbeatDecoder.SCHEMA_ID) {
       return;
     }
 
-    response.wrapAndApplyHeader(egressBuffer, 0, headerEncoder).timestampNanos(clock.timeNanos());
-    final int responseLength = headerEncoder.encodedLength() + response.encodedLength();
+    final int responseLength;
+    if (headerDecoder.templateId() == HeartbeatDecoder.TEMPLATE_ID) {
+      response.wrapAndApplyHeader(egressBuffer, 0, headerEncoder).timestampNanos(clock.timeNanos());
+      responseLength = headerEncoder.encodedLength() + response.encodedLength();
+    } else if (headerDecoder.templateId() == FatHeartbeatDecoder.TEMPLATE_ID) {
+      // Bound-check before touching the payload: the length field inside the frame is
+      // external input, and a claim that reaches past the frame is a truncated or hostile
+      // message, rejected without an echo.
+      fatDecoder.wrap(
+          buffer,
+          offset + headerDecoder.encodedLength(),
+          headerDecoder.blockLength(),
+          headerDecoder.version());
+      final int payloadLength = fatDecoder.payloadLength();
+      final int payloadOffset = fatDecoder.limit() + FatHeartbeatDecoder.payloadHeaderLength();
+      if (payloadOffset + payloadLength > offset + length) {
+        return;
+      }
+      final long checksum = PayloadChecksum.compute(buffer, payloadOffset, payloadLength);
+      fatAck
+          .wrapAndApplyHeader(egressBuffer, 0, headerEncoder)
+          .timestampNanos(clock.timeNanos())
+          .payloadChecksum(checksum);
+      responseLength = headerEncoder.encodedLength() + fatAck.encodedLength();
+    } else {
+      return;
+    }
     // MVP policy, stated in the spec: retry until accepted, whatever the failure code.
     // During replay and on followers, offers return a mocked positive result, so this
     // loop cannot stall a replaying node.

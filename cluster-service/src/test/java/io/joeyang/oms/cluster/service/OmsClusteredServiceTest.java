@@ -4,6 +4,8 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import io.aeron.Publication;
+import io.joeyang.oms.sbe.FatHeartbeatAckDecoder;
+import io.joeyang.oms.sbe.FatHeartbeatEncoder;
 import io.joeyang.oms.sbe.HeartbeatDecoder;
 import io.joeyang.oms.sbe.HeartbeatEncoder;
 import io.joeyang.oms.sbe.MessageHeaderDecoder;
@@ -27,7 +29,7 @@ class OmsClusteredServiceTest {
 
   private final OmsClusteredService service = new OmsClusteredService(NoOpIdleStrategy.INSTANCE);
   private final FakeClientSession session = new FakeClientSession();
-  private final UnsafeBuffer buffer = new UnsafeBuffer(ByteBuffer.allocateDirect(256));
+  private final UnsafeBuffer buffer = new UnsafeBuffer(ByteBuffer.allocateDirect(4096));
 
   private void heartbeatAt(final int offset, final long payloadTimestamp) {
     new HeartbeatEncoder()
@@ -52,6 +54,54 @@ class OmsClusteredServiceTest {
 
     assertEquals(1, session.offerCount(), "exactly one egress offer");
     assertEquals(1_000L, decodeEchoTimestamp(session.delivered().get(0)), "sequenced time");
+  }
+
+  private int fatHeartbeatAt(final int offset, final byte[] payload) {
+    final MessageHeaderEncoder header = new MessageHeaderEncoder();
+    final FatHeartbeatEncoder fat = new FatHeartbeatEncoder();
+    fat.wrapAndApplyHeader(buffer, offset, header)
+        .timestampNanos(0L)
+        .putPayload(payload, 0, payload.length);
+    return header.encodedLength() + fat.encodedLength();
+  }
+
+  private static byte[] pattern(final int length) {
+    final byte[] payload = new byte[length];
+    for (int i = 0; i < length; i++) {
+      payload[i] = (byte) (i * 31 + 7);
+    }
+    return payload;
+  }
+
+  @Test
+  void fatHeartbeatEchoesSequencedTimeAndPayloadChecksum() {
+    final byte[] payload = pattern(1024);
+    final int frameLength = fatHeartbeatAt(16, payload);
+
+    service.onSessionMessage(session, 2_000L, buffer, 16, frameLength, null);
+
+    assertEquals(1, session.offerCount(), "exactly one ack");
+    final UnsafeBuffer ack = new UnsafeBuffer(session.delivered().get(0));
+    final MessageHeaderDecoder header = new MessageHeaderDecoder();
+    header.wrap(ack, 0);
+    assertEquals(FatHeartbeatAckDecoder.TEMPLATE_ID, header.templateId(), "the fat echo message");
+    final FatHeartbeatAckDecoder decoder = new FatHeartbeatAckDecoder();
+    decoder.wrap(ack, header.encodedLength(), header.blockLength(), header.version());
+    assertEquals(2_000L, decoder.timestampNanos(), "sequenced time, not the payload's");
+    final UnsafeBuffer payloadView = new UnsafeBuffer(payload);
+    assertEquals(
+        PayloadChecksum.compute(payloadView, 0, payload.length),
+        decoder.payloadChecksum(),
+        "checksum over every payload byte");
+  }
+
+  @Test
+  void fatHeartbeatTruncatedInsideThePayloadEmitsNothing() {
+    final int frameLength = fatHeartbeatAt(0, pattern(1024));
+
+    service.onSessionMessage(session, 2_000L, buffer, 0, frameLength - 100, null);
+
+    assertEquals(0, session.offerCount(), "a payload cut short is rejected, not checksummed");
   }
 
   @Test
