@@ -11,7 +11,9 @@
 # (e.g. the tuned profile; a 100M-message recording at the default profile takes ~12
 # hours, tuned ~15-20 minutes). SKIP_GOLDENS=1 omits the golden-outputs file for
 # local scale tapes — at 100M messages it is a 2 GB file nothing reads; the count is
-# still verified and the omission is recorded in the manifest.
+# still verified and the omission is recorded in the manifest. TYPE=fat records
+# FatHeartbeats (32 KB payloads); goldens then carry two values per line:
+# "<timestamp> <checksum>".
 set -euo pipefail
 
 NAME=${1:?usage: record-tape.sh <name> [count]}
@@ -20,6 +22,10 @@ PORT=${PORT:-22112}   # isolated: distinct from dev (9002) and perf (22102)
 NODE_FLAGS=${NODE_FLAGS:-}
 GW_FLAGS=${GW_FLAGS:-}
 SKIP_GOLDENS=${SKIP_GOLDENS:-}
+TYPE=${TYPE:-heartbeat}
+if [ "$TYPE" = "fat" ]; then
+  GW_FLAGS="$GW_FLAGS --jvm_flag=-Doms.gateway.fat=true"
+fi
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 TAPE="$ROOT/journal/$NAME.tar.gz"
@@ -75,6 +81,10 @@ trap - EXIT
 # (Derivable later from the tape itself via tape-cat if skipped here.)
 if [ -n "$SKIP_GOLDENS" ]; then
   GOT=$(grep -c 'sequenced=' "$WORK/gateway.log")
+elif [ "$TYPE" = "fat" ]; then
+  grep -oP 'sequenced=-?\d+ checksum=-?\d+' "$WORK/gateway.log" \
+    | sed 's/sequenced=//; s/ checksum=/ /' > "$ROOT/journal/$NAME.golden-outputs.txt"
+  GOT=$(wc -l < "$ROOT/journal/$NAME.golden-outputs.txt")
 else
   grep -oP 'sequenced=\K\d+' "$WORK/gateway.log" > "$ROOT/journal/$NAME.golden-outputs.txt"
   GOT=$(wc -l < "$ROOT/journal/$NAME.golden-outputs.txt")
@@ -83,6 +93,7 @@ fi
 
 {
   echo "name: $NAME"
+  echo "type: $TYPE"
   echo "messages: $COUNT"
   echo "golden-outputs: $([ -n "$SKIP_GOLDENS" ] && echo 'skipped (SKIP_GOLDENS)' || echo "$NAME.golden-outputs.txt")"
   echo "schema-version: $(grep -oP 'version="\K[0-9]+' "$ROOT/sbe/message-schema.xml" | head -1)"
