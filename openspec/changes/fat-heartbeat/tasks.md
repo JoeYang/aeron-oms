@@ -2,16 +2,16 @@
 
 ## 1. Schema (own commit, /sbe-gen review)
 
-- [ ] 1.1 Capture wire identity before; add FatHeartbeat (append-only, uint16 payload
+- [x] 1.1 Capture wire identity before; add FatHeartbeat (append-only, uint16 payload
       length, sinceVersion bump); regenerate; diff identity — existing messages unmoved
-- [ ] 1.2 Codec tests: round trip, boundary payload sizes (0, 1, 32000, max), non-zero
+- [x] 1.2 Codec tests: round trip, boundary payload sizes (0, 1, 32000, max), non-zero
       offset, wire-identity pin for the new message
 
 ## 2. State machine (TDD)
 
-- [ ] 2.1 Failing tests: checksum pinned against hand-computed values for known payloads;
+- [x] 2.1 Failing tests: checksum pinned against hand-computed values for known payloads;
       determinism; allocation-free apply
-- [ ] 2.2 FatHeartbeat apply: checksum + timestamp echo
+- [x] 2.2 FatHeartbeat apply: checksum + timestamp echo
 
 ## 3. Walker reassembly (TDD)
 
