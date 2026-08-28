@@ -46,13 +46,37 @@ gateway → sequencing → fragmented journal → reassembly → checksum → go
 ~11× versus app-mode, where thin messages paid only ~2× — recovery through the real cluster
 pays per-fragment costs (archive reads via Aeron, log adapter handling, copies) that scale
 with bytes. Practical reading: a 1M-fat-message day recovers in ~45 s versus ~3.3 s for 100M
-thin messages — **journal bytes, not message count, size the recovery bill**, and this is
-where a future fat-path initiative (or snapshotting) would aim.
+thin messages — **journal bytes, not message count, size the recovery bill.** The
+attribution below shows which part of the stack actually charges it.
+
+## Cluster recovery, attributed (cold vs warm, 2026-08-28)
+
+The ~11× number above conflated three costs. Rerun with explicit cache control — same tape,
+same node invocation as `replay-cluster.sh`; disk volume from `/proc/diskstats`, per-thread
+CPU from `pidstat -t`:
+
+| condition | wall | msg/s | journal GB/s | disk read |
+|---|---|---|---|---|
+| original runs above (extraction writeback in flight) | 44.9 / 47.2 s | ~22k | 0.7 | contended |
+| cold, clean (cache evicted, writeback flushed) | 32.5 s | 30.7k | 1.0 | 32.9 GB @ ~78% util |
+| warm (tape fully RAM-resident via tmpfs) | 5.70 s | 175.4k | 5.8 | 0.0 GB |
+
+- Warm, the cluster machinery moves fat journal bytes at **5.8 GB/s — 1.4× app-mode's
+  7.9** — better per byte than the thin tape's ~2×. The "11× cluster penalty" was ~85% disk:
+  cold reads, plus writeback of the just-extracted 31 GB competing for the same drive in
+  the original runs.
+- Cold, the JVM is 0.67 cores busy and no thread exceeds 27% — pure disk wait. Warm, it is
+  a 2.8-core pipeline: archive-conductor 93%, clustered-service 81%, consensus-module 35%.
+- The cold ceiling is kernel readahead, not the drive: buffered streaming reads run
+  ~1.2 GB/s (`read_ahead_kb=128`) while `O_DIRECT` 64 MB reads pull 3.1 GB/s from the same
+  file (Samsung PM9A1-class). A ~3× cold-recovery lever that never touches cluster code.
 
 ## Verdict
 
 The system handles 32 KB messages end to end at full honesty: they fragment at every hop,
 the walker reassembles them, the apply pays 1.6 µs to read every byte, and the goldens prove
 integrity for all million. The app-mode pipeline treats message size as free per byte
-(~8 GB/s either way); the cluster recovery path does not, and is the first place to look
-if fat recovery time ever matters.
+(~8 GB/s either way), and warm cluster recovery is only 1.4× behind it. What sizes fat
+recovery time in practice is cold disk delivery — kernel readahead at ~1 GB/s against a
+drive that can stream 3+ — times journal bytes on disk. Untried levers are parked in
+`ideas/fat-message-levers.md`.
