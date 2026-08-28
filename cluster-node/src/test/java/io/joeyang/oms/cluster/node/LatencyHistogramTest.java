@@ -24,6 +24,18 @@ class LatencyHistogramTest {
   }
 
   @Test
+  void p9999SeesTheDeepTailThatP999Misses() {
+    final LatencyHistogram histogram = new LatencyHistogram();
+    for (int i = 0; i < 9_998; i++) {
+      histogram.record(20);
+    }
+    histogram.record(1_000_000);
+    histogram.record(1_000_000);
+    assertEquals(20, histogram.valueAtPercentile(99.9));
+    assertWithin(4, 1_000_000, histogram.valueAtPercentile(99.99));
+  }
+
+  @Test
   void percentilesSplitBimodalDistribution() {
     final LatencyHistogram histogram = new LatencyHistogram();
     for (int i = 0; i < 990; i++) {

@@ -3,6 +3,7 @@ package io.joeyang.oms.cluster.node;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.File;
 import java.io.IOException;
@@ -47,6 +48,44 @@ class TapeReplayTest {
     return Files.readAllLines(Path.of(RUNFILES + "heartbeats-v1.golden-outputs.txt")).stream()
         .mapToLong(Long::parseLong)
         .toArray();
+  }
+
+  @Test
+  void latencyReportIncludesDeepTailPercentile() {
+    final LatencyHistogram histogram = new LatencyHistogram();
+    histogram.record(20);
+
+    final String report = TapeReplayMain.latencyReport(histogram);
+
+    assertTrue(report.startsWith("apply-latency: n=1 "), report);
+    assertTrue(report.contains(" p99.9="), report);
+    assertTrue(report.contains(" p99.99="), report);
+    assertTrue(report.contains(" max="), report);
+  }
+
+  @Test
+  void pinFlagParsesTheTargetCpu() {
+    final TapeReplayMain.Options options =
+        TapeReplayMain.parseOptions(new String[] {"a", "m", "-", "--pin", "4", "--latency"});
+
+    assertTrue(options.ok(), "well-formed --pin must parse");
+    assertEquals(4, options.pinCpu());
+    assertTrue(options.withLatency());
+  }
+
+  @Test
+  void absentPinFlagMeansNoPin() {
+    final TapeReplayMain.Options options =
+        TapeReplayMain.parseOptions(new String[] {"a", "m", "-"});
+
+    assertTrue(options.ok());
+    assertEquals(TapeReplayMain.NO_PIN, options.pinCpu());
+  }
+
+  @Test
+  void pinFlagWithoutValueOrWithGarbageIsUsageError() {
+    assertTrue(!TapeReplayMain.parseOptions(new String[] {"a", "m", "-", "--pin"}).ok());
+    assertTrue(!TapeReplayMain.parseOptions(new String[] {"a", "m", "-", "--pin", "four"}).ok());
   }
 
   @Test
