@@ -21,6 +21,9 @@ import org.agrona.concurrent.ShutdownSignalBarrier;
  *       restart-recovery replay once the node reaches leader; observational only
  *   <li>{@code oms.replay.warmup} — exclude the first N replay applies from the report's timing
  *       window (JIT warmup; same discard convention as the perf protocol)
+ *   <li>{@code oms.replay.prefetch} — stream the archive through the page cache in parallel at
+ *       start, ahead of the recovery replayer; cold-read lever, off by default
+ *   <li>{@code oms.replay.prefetch.threads} — prefetch parallelism (default 4)
  * </ul>
  */
 public final class ClusterNodeMain {
@@ -50,6 +53,15 @@ public final class ClusterNodeMain {
     final boolean lowLatency = Boolean.getBoolean("oms.lowlatency");
     final boolean ipc = Boolean.getBoolean("oms.ipc");
 
+    final boolean prefetch = Boolean.getBoolean("oms.replay.prefetch");
+    if (prefetch) {
+      // Fire-and-forget by contract: the future is never joined here, so no prefetch
+      // failure can reach the node — see ArchivePrefetcher.
+      ArchivePrefetcher.start(
+          new File(new File(base, "node-0"), "archive"),
+          Integer.getInteger("oms.replay.prefetch.threads", 4));
+    }
+
     final ClusteredService service =
         Boolean.getBoolean("oms.replay.report")
             ? new ReplayReportingService(
@@ -76,6 +88,12 @@ public final class ClusterNodeMain {
           "  clean   : " + clean + " (reset with --jvm_flag=-Doms.cluster.clean=true)");
       System.out.println(
           "  profile : " + (lowLatency ? "low-latency (dedicated + busy-spin)" : "default"));
+      if (prefetch) {
+        System.out.println(
+            "  prefetch: on ("
+                + Integer.getInteger("oms.replay.prefetch.threads", 4)
+                + " threads warming the archive)");
+      }
       System.out.println("Ctrl+C to stop.");
 
       barrier.await();
