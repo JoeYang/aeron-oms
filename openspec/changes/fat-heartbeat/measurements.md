@@ -32,8 +32,9 @@ are both inside that budget.
 The design's predicted "~1–2 µs honest cost of touching fat data" measured: **p50 = 1.6 µs**,
 which is 32 KB read at ~20 GB/s — cache-speed, because the walker's reassembly copy leaves
 the payload hot for the checksum. The distribution is remarkably tight: p99.9 sits within
-~200 ns of the median on the isolated core. p99.99 (6–8 µs) and max (18–300 µs) are the
-fault band of a partially-resident 31 GB mapping.
+~200 ns of the median on the isolated core. p99.99 (6–8 µs) and max (18–300 µs) were first
+attributed to faults on a partially-resident mapping; the fully-resident rerun below
+falsified that, so the band is unexplained and parked.
 
 ## Integrity gate (full two-value goldens, one run)
 
@@ -70,6 +71,29 @@ CPU from `pidstat -t`:
 - The cold ceiling is kernel readahead, not the drive: buffered streaming reads run
   ~1.2 GB/s (`read_ahead_kb=128`) while `O_DIRECT` 64 MB reads pull 3.1 GB/s from the same
   file (Samsung PM9A1-class). A ~3× cold-recovery lever that never touches cluster code.
+
+## Rerun, fully RAM-resident (2026-08-28)
+
+Same code, same flags, but the extraction hosted on tmpfs and verified resident before
+each run (prefault at 10.5 GB/s, zero disk reads) — the one condition the original suite
+could not control:
+
+| test | original | resident rerun | verdict |
+|---|---|---|---|
+| app throughput (3 measured) | 219.6k / 244.9k / 248.0k msg/s | 236.7k / 236.7k / 236.9k | same band, tighter spread |
+| apply p50 | 1568–1600 ns | 1568–1632 ns | reproduced |
+| apply p99.9 | 1760–1792 ns | 1760–1984 ns | reproduced |
+| apply p99.99 | 5888–7680 ns | 5632–6272 ns | **unchanged — not a fault band** |
+| apply max | 18–299 µs | 14–400 µs | unchanged |
+| integrity gate | REPLAY OK | REPLAY OK | reproduced |
+| cluster recovery (warm) | 5.70 s / 175.4k msg/s | 5.91 s / 169.3k msg/s | reproduced (±3.5%) |
+
+Two conclusions. First, every fat number reproduces — the suite is trustworthy. Second,
+full residency improves nothing: the timed paths never saw the missing pages, because the
+walker's untimed decode absorbs the faults, and the discarded warm-up run had already made
+the timed originals effectively resident. The p99.99/max band survives full residency, so
+its cause is elsewhere (candidates: safepoints, scheduler/SMI residue, JIT) — parked in
+`ideas/fat-message-levers.md` rather than guessed at again.
 
 ## Verdict
 

@@ -69,3 +69,11 @@ above optimizes the constant; this removes the linearity. Largest initiative on 
 list, needs its own spec (snapshot content, cadence, determinism proof via
 golden-tape-through-snapshot), and is eventually inevitable for any real OMS state.
 Revisit trigger: the state machine holds real order state worth snapshotting.
+
+## Residual apply-tail attribution (attacks: p99.99 ≈ 6 µs, max 14–400 µs)
+
+The band survives a fully RAM-resident tape, so it is not paging. ~100 events per run at
+p99.99 is enough to catch with `perf` on the isolated core (or JFR safepoint/compilation
+logs) during a latency replay. Same shape as the parked thin-tape residual (p99.99
+≈ 200 ns there); one attribution session likely explains both. Trap: the fault-band
+explanation was already written down once without evidence — attribute before narrating.
