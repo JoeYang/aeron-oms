@@ -86,7 +86,7 @@ class HeartbeatCodecTest {
   void wireIdentityIsPinned() {
     assertEquals(1, HeartbeatEncoder.SCHEMA_ID, "schema id is part of the log format");
     assertEquals(1, HeartbeatEncoder.TEMPLATE_ID, "template id is part of the log format");
-    assertEquals(1, HeartbeatEncoder.SCHEMA_VERSION, "schema version is part of the log format");
+    assertEquals(2, HeartbeatEncoder.SCHEMA_VERSION, "bumped when FatHeartbeat was appended");
     assertEquals(
         32, HeartbeatEncoder.BLOCK_LENGTH, "8 bytes of fields plus 24 reserved for growth");
   }
@@ -97,6 +97,21 @@ class HeartbeatCodecTest {
 
     assertEquals(headerEncoder.encodedLength() + HeartbeatEncoder.BLOCK_LENGTH, length);
     assertEquals(40L, length, "8 byte header plus the 32 byte reserved block");
+  }
+
+  /**
+   * The append-only compatibility claim, proven rather than asserted: a message encoded at the
+   * current schema version must still decode correctly through the previous version's view — the
+   * old blockLength and version — because version-1 messages live in cluster logs forever and a
+   * version-1 decoder may meet version-2 bytes.
+   */
+  @Test
+  void versionTwoEncodingDecodesThroughTheVersionOneView() {
+    encodeAt(0, 9_876_543_210L);
+
+    decoder.wrap(buffer, headerEncoder.encodedLength(), 32, 1);
+
+    assertEquals(9_876_543_210L, decoder.timestampNanos());
   }
 
   /**
