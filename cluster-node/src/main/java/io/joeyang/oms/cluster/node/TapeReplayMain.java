@@ -5,7 +5,6 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.Arrays;
 import java.util.Locale;
 
 /**
@@ -98,10 +97,8 @@ public final class TapeReplayMain {
         expected = Long.parseLong(line.substring("messages:".length()).trim());
       }
     }
-    final long[] golden =
-        countOnly
-            ? null
-            : Files.readAllLines(Path.of(args[2])).stream().mapToLong(Long::parseLong).toArray();
+    final long[][] golden =
+        countOnly ? null : parseGoldenColumns(Files.readAllLines(Path.of(args[2])));
 
     final double seconds = result.elapsedNanos() / 1e9;
     System.out.printf(
@@ -115,16 +112,71 @@ public final class TapeReplayMain {
       System.out.println(latencyReport(latency));
     }
 
-    if (result.heartbeats() != expected
-        || (!countOnly && !Arrays.equals(golden, result.echoedTimestamps()))) {
+    final String mismatch =
+        countOnly
+            ? null
+            : goldenMismatch(
+                golden[0], golden[1], result.echoedTimestamps(), result.echoedChecksums());
+    if (result.heartbeats() != expected || mismatch != null) {
       System.err.println(
-          "REPLAY MISMATCH: manifest says " + expected + " messages; outputs must equal golden");
+          "REPLAY MISMATCH: manifest says "
+              + expected
+              + " messages; "
+              + (mismatch != null ? mismatch : "count differs"));
       System.exit(1);
     }
     System.out.println(
         countOnly
             ? "REPLAY OK: count matches the manifest (count-only tape)"
             : "REPLAY OK: count and outputs match the golden files");
+  }
+
+  /**
+   * Parses golden lines: one column (timestamps) or two ({@code <timestamp> <checksum>}, the
+   * fat-tape format). Returns {@code [timestamps, checksums-or-null]}.
+   */
+  static long[][] parseGoldenColumns(final java.util.List<String> lines) {
+    final boolean twoColumns = !lines.isEmpty() && lines.get(0).trim().contains(" ");
+    final long[] timestamps = new long[lines.size()];
+    final long[] checksums = twoColumns ? new long[lines.size()] : null;
+    for (int i = 0; i < lines.size(); i++) {
+      final String[] parts = lines.get(i).trim().split("\\s+");
+      timestamps[i] = Long.parseLong(parts[0]);
+      if (twoColumns) {
+        checksums[i] = Long.parseLong(parts[1]);
+      }
+    }
+    return new long[][] {timestamps, checksums};
+  }
+
+  /**
+   * Compares echoes against goldens; a non-null return names the first divergence. A checksum
+   * mismatch is a payload-integrity failure, which count-only verification could never see.
+   */
+  static String goldenMismatch(
+      final long[] goldenTimestamps,
+      final long[] goldenChecksums,
+      final long[] echoedTimestamps,
+      final long[] echoedChecksums) {
+    if (goldenTimestamps.length != echoedTimestamps.length) {
+      return "expected " + goldenTimestamps.length + " echoes, got " + echoedTimestamps.length;
+    }
+    for (int i = 0; i < goldenTimestamps.length; i++) {
+      if (goldenTimestamps[i] != echoedTimestamps[i]) {
+        return "timestamp diverges at position " + i;
+      }
+    }
+    if (goldenChecksums != null) {
+      if (goldenChecksums.length != echoedChecksums.length) {
+        return "expected " + goldenChecksums.length + " checksums, got " + echoedChecksums.length;
+      }
+      for (int i = 0; i < goldenChecksums.length; i++) {
+        if (goldenChecksums[i] != echoedChecksums[i]) {
+          return "checksum diverges at position " + i + " - payload integrity failure";
+        }
+      }
+    }
+    return null;
   }
 
   static String latencyReport(final LatencyHistogram latency) {
