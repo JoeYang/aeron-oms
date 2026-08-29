@@ -34,6 +34,25 @@ bands as small pages, re-confirming the fat-heartbeat rerun's finding that the t
 reads the L2-hot scratch and never pays the mapping's faults or TLB misses; those are
 absorbed by the untimed walk, which is exactly where the throughput gain shows up.
 
+## Thin-tape rerun (review follow-up, 2026-08-29)
+
+Same protocol on `local-heartbeats-100m` (100M × 128 B, 12.9 GB): control tar-extracted
+onto the tmpfs (ShmemHugePages flat — small folios confirmed), huge hosting via the
+`dd bs=2M` extraction, both prefaulted resident, pinned, 4 runs per mode. Fragmentation
+allowed **70% PMD coverage** this time (8.9 of 12.6 GB requested, read back every run).
+
+| mode | throughput runs (msg/s) | apply latency |
+|---|---|---|
+| small pages | 52.8M / 47.3M / 53.5M / 54.0M | p50 17, p99.9 70–80, p99.99 188–204 ns |
+| `--huge` (70% PMD) | 65.9M / 65.5M / 65.8M / 65.8M | p50 17–19, p99.9 68–92, p99.99 184–236 ns |
+
+**+22–27% at 70% coverage, latency bands overlapping — unchanged.** The thin effect is
+larger than the fat one (+9.6%) and the mechanism says why: thin applies read the mapped
+bytes directly, with no reassembly copy to absorb translation misses, so the TLB cost is a
+larger fraction of a 17 ns apply pipeline than of a 1.6 µs one. Also notable: the huge
+runs are far tighter (65.5–65.9M) than the small-page spread (47.3–54.0M) — removing
+translation overhead removes a throughput noise source too.
+
 ## Verdict
 
 The lever is real on fat tapes (+9.6% under partial delivery) and the machinery is honest
