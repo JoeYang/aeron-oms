@@ -24,6 +24,21 @@ saturation plateau holds (64 ≈ 256, ~2.0 GB/s ingest); the windowed runs came 
 faster than the first set, consistent with a quieter machine. All three recordings passed
 recovery verification with full goldens.
 
+## Per-message RTT under pipelining (reproduction runs)
+
+| window | p50 | p90 | p99 | p99.9 | max |
+|---|---|---|---|---|---|
+| 1 | 211 µs | 229 µs | 291 µs | 461 µs | 5.5 ms |
+| 64 | 850 µs | 948 µs | 2.6 ms | 9.0 ms | 12.4 ms |
+| 256 | 3.6 ms | 3.9 ms | 10.1 ms | 17.8 ms | 19.9 ms |
+
+Throughput is bought with queueing delay, exactly per Little's law (RTT ≈ outstanding ÷
+throughput: 64 ÷ 62.2k/s ≈ 1.0 ms, 256 ÷ 63.2k/s ≈ 4.0 ms — the measured medians sit just
+under those bounds). For a recording tool this is the right trade — nothing consumes these
+RTTs — and it is the second reason window 64 beats 256: identical throughput, 4× lower
+per-message delay. The state machine's apply latency is untouched by this change; the tape
+contents and goldens are identical whatever the window.
+
 Notes:
 
 - The closed-loop baseline here (4.8k msg/s) is faster than the 1M recording's ~3.7k from
