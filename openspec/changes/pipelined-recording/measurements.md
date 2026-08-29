@@ -16,6 +16,14 @@ passed the script's built-in recovery verification with full two-value goldens.
 ~64 outstanding the binding constraint moves off the RTT and onto the ingest path
 (archive write / IPC flow control), which is where it should sit for a recording tool.
 
+## Reproduction (later the same night)
+
+Fresh tapes, identical protocol: window 1 → **4,765 msg/s** (first run: 4,767 — dead-on);
+window 64 → **62,236**; window 256 → **63,240**. The speedup reproduces at 13.1× and the
+saturation plateau holds (64 ≈ 256, ~2.0 GB/s ingest); the windowed runs came out ~6-11%
+faster than the first set, consistent with a quieter machine. All three recordings passed
+recovery verification with full goldens.
+
 Notes:
 
 - The closed-loop baseline here (4.8k msg/s) is faster than the 1M recording's ~3.7k from
