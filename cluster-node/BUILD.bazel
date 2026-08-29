@@ -61,6 +61,7 @@ java_junit5_test(
     deps = [
         ":node-lib",
         "//cluster-service",
+        "//core",
         "//sbe-java",
         "@maven//:io_aeron_aeron_client",
         "@maven//:io_aeron_aeron_cluster",

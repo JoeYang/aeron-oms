@@ -1,6 +1,7 @@
 package io.joeyang.oms.cluster.node;
 
 import io.joeyang.oms.core.affinity.LinuxThreadAffinity;
+import io.joeyang.oms.core.memory.LinuxMemoryAdvice;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -25,11 +26,12 @@ public final class TapeReplayMain {
   static final int NO_PIN = -1;
 
   /** Parsed command line: trailing flags after the three positional arguments. */
-  record Options(String warmupDir, boolean withLatency, int pinCpu, boolean ok) {}
+  record Options(String warmupDir, boolean withLatency, int pinCpu, boolean huge, boolean ok) {}
 
   static Options parseOptions(final String[] args) {
     String warmupDir = null;
     boolean withLatency = false;
+    boolean huge = false;
     int pinCpu = NO_PIN;
     boolean usageOk = args.length >= 3;
     for (int i = 3; usageOk && i < args.length; i++) {
@@ -37,6 +39,8 @@ public final class TapeReplayMain {
         warmupDir = args[++i];
       } else if ("--latency".equals(args[i])) {
         withLatency = true;
+      } else if ("--huge".equals(args[i])) {
+        huge = true;
       } else if ("--pin".equals(args[i]) && i + 1 < args.length) {
         try {
           pinCpu = Integer.parseInt(args[++i]);
@@ -47,7 +51,7 @@ public final class TapeReplayMain {
         usageOk = false;
       }
     }
-    return new Options(warmupDir, withLatency, pinCpu, usageOk);
+    return new Options(warmupDir, withLatency, pinCpu, huge, usageOk);
   }
 
   /**
@@ -62,7 +66,7 @@ public final class TapeReplayMain {
     if (!options.ok()) {
       System.err.println(
           "usage: tape-replay <archive-dir> <manifest> <golden-outputs|-> "
-              + "[--warmup <archive-dir>] [--latency] [--pin <cpu>]");
+              + "[--warmup <archive-dir>] [--latency] [--pin <cpu>] [--huge]");
       System.exit(2);
     }
 
@@ -89,7 +93,31 @@ public final class TapeReplayMain {
     }
 
     final LatencyHistogram latency = options.withLatency() ? new LatencyHistogram() : null;
-    final TapeReplay.Result result = TapeReplay.replay(new File(args[0]), !countOnly, latency);
+    if (options.huge()) {
+      // Launchers can hand us an inherited PR_SET_THP_DISABLE, which vetoes huge pages
+      // for the whole process before any madvise or mount policy is consulted.
+      LinuxMemoryAdvice.clearProcessThpDisable();
+    }
+    final TapeReplay.Result result =
+        TapeReplay.replay(
+            new File(args[0]),
+            !countOnly,
+            latency,
+            options.huge() ? new LinuxMemoryAdvice() : null);
+    if (options.huge()) {
+      final File archiveDir = new File(args[0]).getCanonicalFile();
+      long requestedKb = 0;
+      for (final File f : archiveDir.listFiles((dir, name) -> name.endsWith(".rec"))) {
+        requestedKb += f.length() / 1024;
+      }
+      final long mappedKb =
+          pmdMappedKb(Files.readAllLines(Path.of("/proc/self/smaps")), archiveDir.getPath());
+      System.out.printf(
+          Locale.ROOT,
+          "huge-pages: %d kB PMD-mapped of %d kB requested (File+ShmemPmdMapped)%n",
+          mappedKb,
+          requestedKb);
+    }
 
     long expected = -1;
     for (final String line : Files.readAllLines(Path.of(args[1]))) {
@@ -177,6 +205,24 @@ public final class TapeReplayMain {
       }
     }
     return null;
+  }
+
+  /**
+   * Sums {@code FilePmdMapped} for smaps mappings under the given path prefix. Advice is a request,
+   * not a guarantee; this is the read-back that decides whether huge pages actually happened.
+   */
+  static long pmdMappedKb(final java.util.List<String> smapsLines, final String pathPrefix) {
+    long total = 0;
+    boolean inMatchingMapping = false;
+    for (final String line : smapsLines) {
+      if (line.matches("^[0-9a-f]+-[0-9a-f]+ .*")) {
+        inMatchingMapping = line.contains(pathPrefix);
+      } else if (inMatchingMapping
+          && (line.startsWith("FilePmdMapped:") || line.startsWith("ShmemPmdMapped:"))) {
+        total += Long.parseLong(line.replaceAll("[^0-9]", ""));
+      }
+    }
+    return total;
   }
 
   static String latencyReport(final LatencyHistogram latency) {

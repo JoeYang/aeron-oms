@@ -5,6 +5,7 @@ import io.aeron.cluster.service.ClientSession;
 import io.aeron.logbuffer.BufferClaim;
 import io.aeron.logbuffer.Header;
 import io.joeyang.oms.cluster.service.OmsClusteredService;
+import io.joeyang.oms.core.memory.MemoryAdvice;
 import io.joeyang.oms.sbe.FatHeartbeatAckDecoder;
 import io.joeyang.oms.sbe.HeartbeatDecoder;
 import java.io.File;
@@ -74,6 +75,23 @@ public final class TapeReplay {
    */
   public static Result replay(
       final File archiveDir, final boolean captureEchoes, final LatencyHistogram latency) {
+    return replay(archiveDir, captureEchoes, latency, null);
+  }
+
+  /**
+   * Replays with optional latency capture and optional memory advice on the tape mapping.
+   *
+   * @param archiveDir an unpacked tape's {@code archive/} directory
+   * @param captureEchoes whether echoed timestamps are accumulated
+   * @param latency histogram receiving per-apply nanoseconds, or {@code null}
+   * @param advice applied to each segment mapping at map time, or {@code null}
+   * @return the replay result
+   */
+  public static Result replay(
+      final File archiveDir,
+      final boolean captureEchoes,
+      final LatencyHistogram latency,
+      final MemoryAdvice advice) {
     final CapturingSession session = new CapturingSession(captureEchoes);
     final OmsClusteredService service = new OmsClusteredService();
     final Header header = new Header(0, Integer.numberOfTrailingZeros(64 * 1024));
@@ -107,7 +125,7 @@ public final class TapeReplay {
 
     final Applier applier = new Applier();
     final long startNanos = System.nanoTime();
-    TapeWalker.walk(archiveDir, applier);
+    TapeWalker.walk(archiveDir, applier, advice);
     final long elapsedNanos = System.nanoTime() - startNanos;
 
     if (session.echoCount != applier.sessionMessages) {
