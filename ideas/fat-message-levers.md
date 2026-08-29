@@ -53,13 +53,20 @@ and 2 MB mappings cut page faults from 8 per 32 KB message to 1 per 64 messages,
 is aimed at the measured p99.99 (6–8 µs) / max fault band. Revisit trigger: the user
 wants to understand and un-park #40.
 
-## Gateway pipelining (attacks: recording wall time — tooling only)
+## Gateway pipelining — measured and rejected (2026-08-29, PR #45 closed)
 
-Recording is closed-loop, one message in flight: ~3.7k msg/s is pure RTT, not a system
-limit. A window of N outstanding sends multiplies recording speed by ~N until another
-limit binds. No product value — the gateway's product path is not a bulk loader — but
-recording 10M+ fat tapes becomes practical. Revisit trigger: tape recording time blocks
-an initiative.
+Built and measured on `feat/pipelined-recording` (branch and full measurements preserved
+on the closed PR): a `SendWindow` of N outstanding sends took 100k-message fat recording
+from 4.8k msg/s (RTT-bound) to 62k msg/s at window 64 — 13×, saturating ~2 GB/s of
+journal ingest; window 256 bought nothing more. The cost is inherent, not tunable:
+per-message RTT grows exactly per Little's law (211 µs closed-loop → 850 µs at window 64
+→ 3.6 ms at window 256) because each message queues behind the rest of the window.
+
+**Rejected on principle**: latency must not deteriorate when a lever is engaged, even in
+tooling, and a windowed-send pattern should not live in this codebase where it could
+migrate toward the hot path. Revisit trigger: recording time actually blocks an
+initiative *and* the latency principle is consciously waived for the recording tool —
+both, explicitly.
 
 ## Snapshotting (attacks: recovery cost scaling itself)
 
