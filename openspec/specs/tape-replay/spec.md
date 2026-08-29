@@ -108,3 +108,54 @@ with a clear message if the pin cannot be verified. The report SHALL state the p
 - **WHEN** tape-replay runs with --pin onto a CPU id absent from the machine
 - **THEN** it exits nonzero naming the CPU, before replaying anything
 
+### Requirement: The walker reassembles fragmented entries
+
+Entries larger than one log frame SHALL be reassembled from their BEGIN/…/END fragment chain
+into a preallocated scratch buffer before the handler is invoked; unfragmented entries keep
+the zero-copy path. A chain that ends without its final fragment SHALL fail loudly, like any
+torn frame.
+
+#### Scenario: Fat entry spans frames
+
+- **WHEN** app-mode replay walks a tape holding 32 KB entries
+- **THEN** each entry is delivered to the state machine whole, and the replayed count and
+  checksums match the manifest and goldens
+
+#### Scenario: Truncated fragment chain
+
+- **WHEN** a tape ends mid-chain
+- **THEN** replay fails with an error rather than applying a partial payload
+
+### Requirement: Fat-tape goldens verify checksums
+
+For tapes whose goldens carry `<timestamp> <checksum>` lines, app-mode replay SHALL compare
+both values per message and fail on any mismatch.
+
+#### Scenario: Payload corruption is caught
+
+- **WHEN** a replayed payload produces a checksum differing from the golden line
+- **THEN** replay exits nonzero naming the position
+
+### Requirement: App replay can advise huge pages on the tape mapping, verified by read-back
+
+With `--huge`, app-mode replay SHALL clear any inherited process-level THP disable, advise
+`MADV_HUGEPAGE` on each segment mapping at map time, and report the kernel's read-back —
+PMD-mapped kilobytes against requested kilobytes from `/proc/self/smaps`, summed only over
+the measured archive's mappings — so a run whose hosting could not deliver huge pages is
+loudly visible rather than silently small-paged. The flag SHALL default off with
+byte-identical behavior, and advice failure or zero delivery SHALL never affect replay
+correctness.
+
+#### Scenario: Huge-page replay on a hugepage-capable tmpfs hosting
+
+- **GIVEN** the fat tape re-written in 2 MB blocks onto a `huge=always` tmpfs
+- **WHEN** replayed with `--huge`
+- **THEN** the read-back reports a dominant fraction PMD-mapped and the replay outcome is
+  identical to a small-page run
+
+#### Scenario: Hosting that cannot deliver huge pages
+
+- **GIVEN** a tar-extracted tape (small folios) or an ext4-backed extraction
+- **WHEN** replayed with `--huge`
+- **THEN** the replay is correct and the read-back reports approximately zero PMD-mapped
+
